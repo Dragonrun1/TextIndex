@@ -74,7 +74,7 @@ class TextIndex:
 	_list_separator = "; "
 	_shared_class = "textindex"
 	
-	_index_directive_pattern = r"(?:(?<!\\)\[([^\]]+)(?<!\\)\]|([^\s\[\{]++))*\{\^([^\}]*)\}"
+	_index_directive_pattern = r"(?:(?<!\\)\[([^\]<>]+)(?<!\\)\]|([^\s\[\]\{\}<>]++))*(?<!>)\{\^([^\}<\n]*)\}(?!<)"
 	_index_placeholder_pattern = r"(?im)^\{index\s*([^\}]*)\s*\}"
 	
 	
