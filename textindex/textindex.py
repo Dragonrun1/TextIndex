@@ -159,7 +159,7 @@ class TextIndex:
 					delta = 0 - len(directive.group(0))
 					offset += delta
 				
-				if not enabled or status_toggled:
+				if not enabled or status_toggled or toggling_directive:
 					continue
 				
 				# Determine label path.
