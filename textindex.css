@@ -1,0 +1,33 @@
+dl.index {
+	columns: 2;
+	margin-top: 1em;
+	padding: 1em;
+	background-color: #f0f0f0;
+}
+
+dl.index dt {
+	text-indent: 2em hanging;
+}
+
+dl.index dd {
+	margin-left: 1.5em;
+}
+
+dl.index a.locator:before {
+	content: target-counter(attr(href), page);
+	content: attr(data-index-id-elided);
+}
+
+dl.index > dd:has(> dl), 
+dl.index > dt.group-separator {
+	break-before: avoid-column;
+}
+
+dl.index a.locator {
+	text-decoration: none;
+}
+
+dl.index em a.locator {
+	font-weight: bold;
+	font-style: normal;
+}
