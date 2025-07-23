@@ -181,6 +181,7 @@ class TextIndex:
 					
 					label_path_components = [component.strip("'\"") for component in label_path_components]
 					if label:
+						label_path_components = [component.replace("**", emph(label, True).lower()) for component in label_path_components]
 						label_path_components = [component.replace("*", emph(label, True)) for component in label_path_components]
 					last_component = label_path_components[-1]
 					if last_component != self._path_delimiter and last_component != "":
