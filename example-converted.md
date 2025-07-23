@@ -2,6 +2,12 @@
 
 <link rel="stylesheet" href="textindex.css">
 
+---
+
+_This document is an extract from a copyrighted work by [Matt Gemmell](https://mattgemmell.scot). Please do not republish or otherwise reuse it._
+
+---
+
 Physics dictates that you can’t put the same number of keys on a smaller keyboard, assuming the keys themselves are still the usual size. Key sizes are dictated by the way our fingertips have evolved, so something else has to give. This brings us to the topic of <span id="idx1" class="textindex"><em>overloading</em></span>, which was briefly mentioned in the previous section.
 
 Each key must do double (or triple, or more) duty on smaller boards, providing not just the functionality inscribed upon its keycap, but plenty more besides. The question, then, is how to distinguish between a given key’s many possible functions. As is always the case with keyboards, there are several options available.

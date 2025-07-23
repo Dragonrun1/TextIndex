@@ -76,6 +76,8 @@ class TextIndex:
 	
 	_index_directive_pattern = r"(?:(?<!\\)\[([^\]<>]+)(?<!\\)\]|([^\s\[\]\{\}<>]++))*(?<!>)\{\^([^\}<\n]*)\}(?!<)"
 	_index_placeholder_pattern = r"(?im)^\{index\s*([^\}]*)\s*\}"
+	_disable = "-"
+	_enable = "+"
 	
 	
 	def __init__(self, document_text=None):
@@ -116,6 +118,7 @@ class TextIndex:
 			
 			# Find all directives.
 			offset = 0 # accounting for replacements
+			enabled = True
 			directive_matches = re.finditer(TextIndex._index_directive_pattern, self.original_document)
 			for directive in directive_matches:
 				
@@ -130,14 +133,26 @@ class TextIndex:
 				cross_references = []
 				
 				# Determine type of directive.
+				status_toggled = False
 				if params.endswith(self._end_marker):
 					closing = True
 					params = params[:-len(self._end_marker)]
-					self.inform(f"\tClosing/")
+					self.inform(f"\tClosing mark: /")
 				elif params.endswith(self._emphasis_marker):
 					emphasis = True
 					params = params[:-len(self._emphasis_marker)]
-					self.inform(f"\tLocator Emphasis!")
+					self.inform(f"\tLocator Emphasis: !")
+				elif params == TextIndex._enable and not enabled:
+					enabled = True
+					self.inform(f"============ Processing enabled.  ============")
+					status_toggled = True
+				elif params == TextIndex._disable and enabled:
+					enabled = False
+					self.inform(f"============ Processing disabled. ============")
+					status_toggled = True
+				
+				if not enabled or status_toggled:
+					continue
 				
 				# Determine label path.
 				label = None
@@ -169,7 +184,6 @@ class TextIndex:
 					params = params[:label_match.start()] + params[label_match.end():]
 					
 					# Check for alias definition or reference.
-					#alias_match = re.search(alias_pattern, label)
 					alias_without_reference = False
 					if alias_match:
 						alias_name = alias_match.group(1)
@@ -321,6 +335,8 @@ class TextIndex:
 				indexed_doc = indexed_doc[:directive.start() + offset] + span_html + indexed_doc[directive.end() + offset:]
 				delta = len(span_html) - len(directive.group(0))
 				offset += delta
+			
+			self.inform(f"{len(self)} entries created.", force=True)
 			
 			# Replace each index placeholder with a suitable HTML index.
 			self._indexed_document = indexed_doc # needs an initial value otherwise index_html() will recurse.
@@ -613,7 +629,7 @@ class TextIndexEntry:
 	
 	
 	def __len__(self):
-		num_entries = 0
+		num_entries = 1
 		for entry in self.entries:
 			num_entries += len(entry)
 		return num_entries
