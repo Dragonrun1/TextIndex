@@ -8,13 +8,14 @@ parser.add_argument('--verbose', '-v', help="[optional] Enable verbose logging",
 args=parser.parse_known_args()
 file_path = "example.md"
 verbose = (args[0].verbose == True)
+
+this_script_path = os.path.abspath(os.path.expanduser(sys.argv[0]))
+file_path = os.path.join(os.path.dirname(this_script_path), file_path)
+
 if len(args) > 1:
 	extra_args = args[1]
 	if (len(extra_args) > 0):
 		file_path = extra_args[0]
-
-this_script_path = os.path.abspath(os.path.expanduser(sys.argv[0]))
-file_path = os.path.join(os.path.dirname(this_script_path), file_path)
 
 try:
 	# Open and read file.

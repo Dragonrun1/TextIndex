@@ -133,6 +133,7 @@ class TextIndex:
 				cross_references = []
 				
 				# Determine type of directive.
+				toggling_directive = (params == TextIndex._enable or params == TextIndex._disable)
 				status_toggled = False
 				if params.endswith(self._end_marker):
 					closing = True
@@ -150,6 +151,13 @@ class TextIndex:
 					enabled = False
 					self.inform(f"============ Processing disabled. ============")
 					status_toggled = True
+				
+				if toggling_directive and (enabled or status_toggled):
+					# This was a toggling mark, and we're either now enabled or we were when we encountered it.
+					# Remove the mark.
+					indexed_doc = indexed_doc[:directive.start() + offset] + indexed_doc[directive.end() + offset:]
+					delta = 0 - len(directive.group(0))
+					offset += delta
 				
 				if not enabled or status_toggled:
 					continue
