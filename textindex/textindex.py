@@ -184,6 +184,29 @@ class TextIndex:
 							expanded = self._path_delimiter.join(f'"{elem}"' for elem in val[alias_path])
 							label_match_text = re.sub(rf"(?<!{alias_prefix}){alias_prefix}{key}", expanded, label_match_text)
 					
+					# Handle search wildcards.
+					if label:
+						search_wildcard_pattern = r"\*\^(\-?)"
+						replacement = "*" # fall back on basic wildcard functionality.
+						found_item = None
+						replace_label = None
+						replace_path = None
+						found_wildcards = list(re.finditer(search_wildcard_pattern, label_match_text))
+						if len(found_wildcards) > 0:
+							found_item = self.prefix_search(label)
+						if found_item:
+							replace_label = f'"{found_item.label}"'
+							replace_path = self._path_delimiter.join(f'"{elem}"' for elem in found_item.path_list())
+						for found_wildcard in reversed(found_wildcards):
+							if found_item:
+								label_only = (found_wildcard.group(1) != "")
+								if label_only:
+									replacement = replace_label
+								else:
+									replacement = replace_path
+								self.inform(f"\tFound {'(label-only) ' if label_only else ''}prefix match for '{label}': {replacement}")
+							label_match_text = label_match_text[:found_wildcard.start()] + replacement + label_match_text[found_wildcard.end():]
+					
 					# Split label path.
 					label_path_components = label_match_text.split(self._path_delimiter)
 					
@@ -197,7 +220,7 @@ class TextIndex:
 					
 					# Process wildcards only if there's a preceding label to use for replacement.
 					if label:
-						# Handle replacing wildcards with processed label.
+						# Handle replacing static wildcards with processed label.
 						label_path_components = [component.replace("**", emph(label, True).lower()) for component in label_path_components]
 						label_path_components = [component.replace("*", emph(label, True)) for component in label_path_components]
 					
@@ -577,6 +600,13 @@ class TextIndex:
 		self._index_id_prefix = val
 		self._indexed_document = None
 	
+	def prefix_search(self, text):
+		found = None
+		for entry in self.entries:
+			found = entry.prefix_search(text)
+			if found:
+				break
+		return found
 	
 	def __len__(self):
 		num_entries = 0
@@ -644,6 +674,24 @@ class TextIndexEntry:
 			par = par.parent
 			level += 1
 		return level
+	
+	def prefix_search(self, text):
+		found = None
+		if self.label.startswith(text):
+			return self
+		for entry in self.entries:
+			found = entry.prefix_search(text)
+			if found:
+				break
+		return found
+	
+	def path_list(self):
+		components = [self.label]
+		par = self.parent
+		while par:
+			components.insert(0, par.label)
+			par = par.parent
+		return components
 	
 	def __str__(self):
 		return f"Entry: {self.label} [{len(self.entries)} children]"
