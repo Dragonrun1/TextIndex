@@ -111,9 +111,9 @@ class TextIndex:
 		if self.original_document:
 			indexed_doc = self.original_document
 			alias_prefix = "#"
-			alias_pattern = rf"{alias_prefix}(#?[a-zA-Z0-9\-_]+)$"
+			#alias_token_pattern = rf"(?<!{alias_prefix}){alias_prefix}([a-zA-Z0-9\-_]+)"
+			alias_definition_pattern = rf"{alias_prefix}({alias_prefix}?[a-zA-Z0-9\-_]+)$"
 			aliases = {}
-			alias_label = "label"
 			alias_path = "path"
 			
 			# Find all directives.
@@ -174,37 +174,56 @@ class TextIndex:
 				# Still need to check for a label path within the directive.
 				label_match = re.match(r"^([^\|\[~]+)", params)
 				if label_match:
-					label_path_components = label_match.group(0).strip().split(self._path_delimiter)
-					alias_match = re.search(alias_pattern, label_path_components[-1])
-					if alias_match:
-						label_path_components[-1] = label_path_components[-1][:alias_match.start()]
+					label_match_text = label_match.group(0).strip()
 					
+					# Process aliases before splitting path.
+					if len(aliases) > 0 and len(label_match_text) > 0:
+						# Ensure we replace longer alias-names first, to avoid spurious prefix matches.
+						longest_first = dict(sorted(aliases.items(), key=lambda item: len(item[0]), reverse=True))
+						for key, val in longest_first.items():
+							expanded = self._path_delimiter.join(f'"{elem}"' for elem in val[alias_path])
+							label_match_text = re.sub(rf"(?<!{alias_prefix}){alias_prefix}{key}", expanded, label_match_text)
+					
+					# Split label path.
+					label_path_components = label_match_text.split(self._path_delimiter)
+					
+					# Having already replaced alias references, check for alias definition at end of label path.
+					alias_definition_match = re.search(alias_definition_pattern, label_path_components[-1])
+					if alias_definition_match:
+						label_path_components[-1] = label_path_components[-1][:alias_definition_match.start()]
+					
+					# Remove quotes from path elements.
 					label_path_components = [component.strip("'\"") for component in label_path_components]
+					
+					# Process wildcards only if there's a preceding label to use for replacement.
 					if label:
+						# Handle replacing wildcards with processed label.
 						label_path_components = [component.replace("**", emph(label, True).lower()) for component in label_path_components]
 						label_path_components = [component.replace("*", emph(label, True)) for component in label_path_components]
+					
 					last_component = label_path_components[-1]
 					if last_component != self._path_delimiter and last_component != "":
 						label = last_component
 						label_path_components.pop() # remove last item, which is now the label.
 					if len(label_path_components) > 0 and label_path_components[-1] == "":
 						label_path_components.pop() # remove empty last item.
+					
 					# Trim label path from params.
 					params = params[:label_match.start()] + params[label_match.end():]
 					
-					# Check for alias definition or reference.
+					# Check for alias definition.
 					alias_without_reference = False
-					if alias_match:
-						alias_name = alias_match.group(1)
+					if alias_definition_match:
+						alias_name = alias_definition_match.group(1)
 						if alias_name.startswith(alias_prefix):
 							alias_without_reference = True
 							alias_name = alias_name.lstrip(alias_prefix)
 						
-						if alias_match.start() > 0:
+						if alias_definition_match.start() > 0:
 							# Alias definition at end of an internally-specified label.
 							# Trim alias portion from label, and define.
-							aliases[alias_name] = {alias_label: label, alias_path: label_path_components}
-							self.inform(f"\tDefined alias {alias_name} as: {aliases[alias_name]}")
+							aliases[alias_name] = {alias_path: label_path_components + [label]}
+							self.inform(f"\tDefined alias {alias_prefix}{alias_name} as: {aliases[alias_name]}")
 						else:
 							# Alias found at start of label. Either an alias reference, or a definition without an internal label (foo>#bar or just #bar).
 							if len(label_path_components) == 0:
@@ -218,22 +237,26 @@ class TextIndex:
 									# No path components, and an alias reference to a non-existent alias. Define a new alias instead.
 									if span_contents and len(span_contents) > 0:
 										label = span_contents
-										aliases[alias_name] = {alias_label: label, alias_path: label_path_components}
-										self.inform(f"\tDefined alias {alias_name} as: {aliases[alias_name]}")
+										aliases[alias_name] = {alias_path: label_path_components + [label]}
+										self.inform(f"\tDefined alias {alias_prefix}{alias_name} as: {aliases[alias_name]}")
 							else:
 								# Path components exist, so this is an alias definition without an internal label.
 								if span_contents and len(span_contents) > 0:
 									# We already had a label from either a bracketed span, or implicitly. Define alias.
 									label = span_contents
-									aliases[alias_name] = {alias_label: label, alias_path: label_path_components}
-									self.inform(f"\tDefined alias {alias_name} as: {aliases[alias_name]}")
+									aliases[alias_name] = {alias_path: label_path_components + [label]}
+									self.inform(f"\tDefined alias {alias_prefix}{alias_name} as: {aliases[alias_name]}")
 								else:
 									# No label specified either internally or previously; can't define an alias.
 									label = None
 									self.inform(f"Alias definition without a label: {directive.group(0)}", severity="warning")
 						
 						if alias_without_reference:
-							self.inform(f"\tUnreferenced alias created; skipping rest of directive: {directive.group(0)}")
+							if label:
+								self.inform(f"\tUnreferenced alias created; skipping rest of directive: {directive.group(0)}")
+							else:
+								self.inform(f"\tUnreferenced alias definition without a label; skipping rest of directive: {directive.group(0)}", severity="warning")
+							
 							# Replace directive in indexed_document.
 							span_html = f'{emph(span_contents) if span_contents else ''}'
 							indexed_doc = indexed_doc[:directive.start() + offset] + span_html + indexed_doc[directive.end() + offset:]
@@ -269,7 +292,17 @@ class TextIndex:
 				cross_match = re.match(r"\|(.+)$", params)
 				create_ref = True
 				if cross_match:
-					refs = cross_match.group(1).strip().split(self._refs_delimiter)
+					refs_string = cross_match.group(1).strip()
+					
+					# Process aliases before splitting path.
+					if len(aliases) > 0 and len(refs_string) > 0:
+						# Ensure we replace longer alias-names first, to avoid spurious prefix matches.
+						longest_first = dict(sorted(aliases.items(), key=lambda item: len(item[0]), reverse=True))
+						for key, val in longest_first.items():
+							expanded = self._path_delimiter.join(f'"{elem}"' for elem in val[alias_path])
+							refs_string = re.sub(rf"(?<!{alias_prefix}){alias_prefix}{key}", expanded, refs_string)
+					
+					refs = refs_string.split(self._refs_delimiter)
 					for ref in refs:
 						ref_type = self._see
 						ref = ref.strip()
@@ -281,22 +314,9 @@ class TextIndex:
 							create_ref = False
 						ref_path_components = ref.split(self._path_delimiter)
 						ref_path_components = [component.strip("'\"") for component in ref_path_components]
-						# Check for alias references.
-						add_crossref = True
-						if len(ref_path_components) == 1:
-							alias_match = re.match(alias_pattern, ref_path_components[0])
-							if alias_match:
-								alias_name = alias_match.group(1)
-								if alias_name in aliases:
-									# Got a valid alias reference.
-									ref_path_components = aliases[alias_name][alias_path] + [aliases[alias_name][alias_label]]
-									self.inform(f"\tLoaded alias '{alias_name}' for cross-reference.")
-								else:
-									# Unknown alias.
-									add_crossref = False
-									self.inform(f"\tIgnoring cross-reference with unknown alias '#{alias_name}'. Directive was: {directive.group(0)}", severity="warning")
-						if add_crossref:
-							cross_references.append({self._ref_type: ref_type, self._path: ref_path_components})
+						
+						cross_references.append({self._ref_type: ref_type, self._path: ref_path_components})
+					
 					params = params[:cross_match.start()] + params[cross_match.end():]
 					self.inform(f"\tCross-refs: {cross_references}")
 				

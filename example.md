@@ -52,7 +52,7 @@ In keyboard-related parlance, a _combo_{^*} is exactly what you’d expect it to
 
 You can readily create these for yourself. An example would be if you had a very small keyboard with only ten keys per row, such that its topmost alpha row only has room for the usual letters Q-P. It’s not uncommon in such a situation to configure the board so that pressing `O+P` together will produce the `Backspace` keystroke, as strange as that may sound at first.
 
-There are [ergonomic concerns]{^ergonomics|+safety} with combos, but they’re very efficient with regard to physical space since they superimpose functionality upon existing keys even within the same layer, so there’s a balance to be struck. It’s ultimately up to your own judgement.
+There are [ergonomic concerns]{^ergonomics#ergo|+safety} with combos, but they’re very efficient with regard to physical space since they superimpose functionality upon existing keys even within the same layer, so there’s a balance to be struck. It’s ultimately up to your own judgement.
 
 Now comes the wrinkle: you can approach this from the opposite direction too. In the context of creating a keyboard layout, the term _chord_{^*} most commonly refers to creating a single keystroke which will _trigger an entire combo in one press_. For example, you could create a key (perhaps on a layer) which will trigger the aforementioned Apple-device “lock screen” shortcut, without having to actually press the three constituent keys.
 
@@ -62,7 +62,7 @@ Indeed, entire dedicated keyboards or even more exotic input devices are availab
 
 To be clear, then, in the context of keyboard layouts and configurations, we’d say that a _single_ given key is a _chord_{^chord!} if pressing it sends _multiple keystrokes simultaneously_ (such as the example of a key which locks a Mac’s screen), whereas we’d say that a _combination of simultaneously-pressed keys_ which perform a single action is a _combo_{^*!} (such as pressing `O+P` to generate `Backspace`).
 
-You can, of course, combine these concepts as you wish, for example by creating a two-key combo{^} which triggers a four-key chord{^}. This can be helpful in the common situation where an action is only occasionally needed, and thus doesn’t warrant a first-class single key of its own, but whose underlying chord is ergonomically{^"ergonomics">"concerns regarding"} awkward to press. In this context, a “combo chord” serves as a way to redefine a physically difficult pre-existing keyboard shortcut for more comfortable use.
+You can, of course, combine these concepts as you wish, for example by creating a two-key combo{^} which triggers a four-key chord{^}. This can be helpful in the common situation where an action is only occasionally needed, and thus doesn’t warrant a first-class single key of its own, but whose underlying chord is ergonomically{^#ergo>"concerns regarding"} awkward to press. In this context, a “combo chord” serves as a way to redefine a physically difficult pre-existing keyboard shortcut for more comfortable use.
 
 ## Macros
 
