@@ -72,7 +72,7 @@ Finally, and perhaps most niche, we come to macros. A macro{^macros|+#macrosafet
 
 The degree of use you may have for such things is up to you, but exercise caution{^#macrosafety}: any macros that are part of a keyboard layout are present in the keyboard’s own firmware{^}, and thus will still work when the keyboard is plugged into any other computer or device. Thus, macros should _never_ be used to fill-in sensitive information, such as payment details, passwords, and so on. Use biometrically-authenticated completion methods for these things instead, on your own trusted computers and smart devices only.
 
-With the advent of pervasive system-wide autocompletion, text-expansion, and credentials management, keyboard-resident macros have become an ever more marginal feature{^macros>relevance of}, but they remain available should you think of a good use for them.
+With the advent of pervasive system-wide autocompletion, text-expansion, and credentials management, keyboard-resident macros have become an ever more marginal feature{^macros>"relevance of"}, but they remain available should you think of a good use for them.
 
 ---
 
