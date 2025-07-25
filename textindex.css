@@ -31,3 +31,11 @@ dl.index em a.locator {
 	font-weight: bold;
 	font-style: normal;
 }
+
+@media only screen and (max-width: 500px) {
+
+	dl.index {
+		columns: 1;
+	}
+
+}
