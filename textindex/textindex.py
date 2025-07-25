@@ -80,6 +80,12 @@ class TextIndex:
 	_enable = "+"
 	
 	
+	_alias_prefix = "#"
+	_alias_token_pattern = rf"(?<!{_alias_prefix}){_alias_prefix}([a-zA-Z0-9\-_]+)"
+	_alias_definition_pattern = rf"{_alias_prefix}({_alias_prefix}?[a-zA-Z0-9\-_]+)$"
+	_alias_path = "path"
+	
+	
 	def __init__(self, document_text=None):
 		self.original_document = document_text
 		self.entries = []
@@ -88,6 +94,7 @@ class TextIndex:
 		self._index_id_prefix = TextIndex._index_id_prefix
 		self._indexed_document = None
 		self.verbose = False
+		self.aliases = {}
 	
 	
 	def inform(self, msg, severity="normal", force=False):
@@ -110,11 +117,7 @@ class TextIndex:
 		entry_number = 0
 		if self.original_document:
 			indexed_doc = self.original_document
-			alias_prefix = "#"
-			#alias_token_pattern = rf"(?<!{alias_prefix}){alias_prefix}([a-zA-Z0-9\-_]+)"
-			alias_definition_pattern = rf"{alias_prefix}({alias_prefix}?[a-zA-Z0-9\-_]+)$"
-			aliases = {}
-			alias_path = "path"
+			self.aliases = {}
 			
 			# Find all directives.
 			offset = 0 # accounting for replacements
@@ -177,12 +180,8 @@ class TextIndex:
 					label_match_text = label_match.group(0).strip()
 					
 					# Process aliases before splitting path.
-					if len(aliases) > 0 and len(label_match_text) > 0:
-						# Ensure we replace longer alias-names first, to avoid spurious prefix matches.
-						longest_first = dict(sorted(aliases.items(), key=lambda item: len(item[0]), reverse=True))
-						for key, val in longest_first.items():
-							expanded = self._path_delimiter.join(f'"{elem}"' for elem in val[alias_path])
-							label_match_text = re.sub(rf"(?<!{alias_prefix}){alias_prefix}{key}", expanded, label_match_text)
+					if len(self.aliases) > 0 and len(label_match_text) > 0:
+						label_match_text = re.sub(TextIndex._alias_token_pattern, self.alias_replace, label_match_text)
 					
 					# Handle search wildcards.
 					if label:
@@ -211,7 +210,7 @@ class TextIndex:
 					label_path_components = label_match_text.split(self._path_delimiter)
 					
 					# Having already replaced alias references, check for alias definition at end of label path.
-					alias_definition_match = re.search(alias_definition_pattern, label_path_components[-1])
+					alias_definition_match = re.search(TextIndex._alias_definition_pattern, label_path_components[-1])
 					if alias_definition_match:
 						label_path_components[-1] = label_path_components[-1][:alias_definition_match.start()]
 					
@@ -238,37 +237,37 @@ class TextIndex:
 					alias_without_reference = False
 					if alias_definition_match:
 						alias_name = alias_definition_match.group(1)
-						if alias_name.startswith(alias_prefix):
+						if alias_name.startswith(TextIndex._alias_prefix):
 							alias_without_reference = True
-							alias_name = alias_name.lstrip(alias_prefix)
+							alias_name = alias_name.lstrip(TextIndex._alias_prefix)
 						
 						if alias_definition_match.start() > 0:
 							# Alias definition at end of an internally-specified label.
 							# Trim alias portion from label, and define.
-							aliases[alias_name] = {alias_path: label_path_components + [label]}
-							self.inform(f"\tDefined alias {alias_prefix}{alias_name} as: {aliases[alias_name]}")
+							self.aliases[alias_name] = {TextIndex._alias_path: label_path_components + [label]}
+							self.inform(f"\tDefined alias {TextIndex._alias_prefix}{alias_name} as: {self.aliases[alias_name]}")
 						else:
 							# Alias found at start of label. Either an alias reference, or a definition without an internal label (foo>#bar or just #bar).
 							if len(label_path_components) == 0:
 								# No path components. Could be an alias definition at root, or an alias reference. Try to load the alias.
-								if alias_name in aliases:
+								if alias_name in self.aliases:
 									# It's a valid alias reference. Load alias.
-									label = aliases[alias_name][alias_label]
-									label_path_components = aliases[alias_name][alias_path]
-									self.inform(f"\tLoaded alias {aliases[alias_name]} for directive: {directive.group(0)}")
+									label = self.aliases[alias_name][alias_label]
+									label_path_components = self.aliases[alias_name][TextIndex._alias_path]
+									self.inform(f"\tLoaded alias {self.aliases[alias_name]} for directive: {directive.group(0)}")
 								else:
 									# No path components, and an alias reference to a non-existent alias. Define a new alias instead.
 									if span_contents and len(span_contents) > 0:
 										label = span_contents
-										aliases[alias_name] = {alias_path: label_path_components + [label]}
-										self.inform(f"\tDefined alias {alias_prefix}{alias_name} as: {aliases[alias_name]}")
+										self.aliases[alias_name] = {TextIndex._alias_path: label_path_components + [label]}
+										self.inform(f"\tDefined alias {TextIndex._alias_prefix}{alias_name} as: {self.aliases[alias_name]}")
 							else:
 								# Path components exist, so this is an alias definition without an internal label.
 								if span_contents and len(span_contents) > 0:
 									# We already had a label from either a bracketed span, or implicitly. Define alias.
 									label = span_contents
-									aliases[alias_name] = {alias_path: label_path_components + [label]}
-									self.inform(f"\tDefined alias {alias_prefix}{alias_name} as: {aliases[alias_name]}")
+									self.aliases[alias_name] = {TextIndex._alias_path: label_path_components + [label]}
+									self.inform(f"\tDefined alias {TextIndex._alias_prefix}{alias_name} as: {self.aliases[alias_name]}")
 								else:
 									# No label specified either internally or previously; can't define an alias.
 									label = None
@@ -318,13 +317,8 @@ class TextIndex:
 					refs_string = cross_match.group(1).strip()
 					
 					# Process aliases before splitting path.
-					if len(aliases) > 0 and len(refs_string) > 0:
-						# Ensure we replace longer alias-names first, to avoid spurious prefix matches.
-						longest_first = dict(sorted(aliases.items(), key=lambda item: len(item[0]), reverse=True))
-						for key, val in longest_first.items():
-							expanded = self._path_delimiter.join(f'"{elem}"' for elem in val[alias_path])
-							refs_string = re.sub(rf"(?<!{alias_prefix}){alias_prefix}{key}", expanded, refs_string)
-					
+					if len(self.aliases) > 0 and len(refs_string) > 0:
+						refs_string = re.sub(TextIndex._alias_token_pattern, self.alias_replace, refs_string)
 					refs = refs_string.split(self._refs_delimiter)
 					for ref in refs:
 						ref_type = self._see
@@ -406,12 +400,9 @@ class TextIndex:
 		entries = self.entries
 		
 		for component in (path_list + [label]):
-			#found_entry = next((ent for ent in entries if ent.label == component), None)
 			found_entry = None
 			for ent in entries:
-				#print(f"\tChecking '{ent.label}' against '{component}'")
 				if ent.label == component:
-					#print(f"\tFound {component}")
 					found_entry = ent
 					break
 			
@@ -441,7 +432,14 @@ class TextIndex:
 	
 	def index_replace(self, the_match):
 		return self.index_html(the_match.group(1))
-		
+	
+	
+	def alias_replace(self, the_match):
+		replacement = the_match.group(0)
+		if the_match.group(1) and the_match.group(1) in self.aliases:			
+			replacement = self._path_delimiter.join(f'"{elem}"' for elem in self.aliases[the_match.group(1)][TextIndex._alias_path])
+		return replacement
+	
 	
 	def index_html(self, config_string=None):
 		if not self._indexed_document: self.create_index()
@@ -461,10 +459,8 @@ class TextIndex:
 		if len(self.entries) > 0:
 			html += f'<dl class="{TextIndex._shared_class} index">\n'
 			sorted_entries = self.sort_entries(self.entries)
-			#letter = emph(sorted_entries[0].label, True)[0].lower()
 			letter = sorted_entries[0].sort_on()[0]
 			for entry in sorted_entries:
-				#next_letter = emph(entry.label, True)[0].lower()
 				next_letter = entry.sort_on()[0]
 				if next_letter != letter:
 					html += '\t<dt class="group-separator">&nbsp;</dt>\n'
@@ -532,15 +528,7 @@ class TextIndex:
 			for child in self.sort_entries(entry.entries):
 				html += self.entry_html(child)
 			html += f'{indent}\t</dl>\n{indent}</dd>\n'
-		'''
-		else:
-			# No children, so check for our own see-also cross-references, and use a dummy child if appropriate.
-			# This provides flush-and-hang/indented style for such references.
-			if self.has_also_refs(entry):
-				html += f'{indent}<dd>\n{indent}\t<dl>\n'
-				html += self.entry_html(TextIndexEntry(None, entry))
-				html += f'{indent}\t</dl>\n{indent}</dd>\n'
-		'''
+		
 		# Parent's see-also cross-references.
 		if self.has_also_refs(entry.parent):
 			refs_output = False
