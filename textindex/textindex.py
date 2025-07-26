@@ -183,28 +183,8 @@ class TextIndex:
 					if len(self.aliases) > 0 and len(label_match_text) > 0:
 						label_match_text = re.sub(TextIndex._alias_token_pattern, self.alias_replace, label_match_text)
 					
-					# Handle search wildcards.
-					if label:
-						search_wildcard_pattern = r"\*\^(\-?)"
-						replacement = "*" # fall back on basic wildcard functionality.
-						found_item = None
-						replace_label = None
-						replace_path = None
-						found_wildcards = list(re.finditer(search_wildcard_pattern, label_match_text))
-						if len(found_wildcards) > 0:
-							found_item = self.prefix_search(label)
-						if found_item:
-							replace_label = f'"{found_item.label}"'
-							replace_path = self._path_delimiter.join(f'"{elem}"' for elem in found_item.path_list())
-						for found_wildcard in reversed(found_wildcards):
-							if found_item:
-								label_only = (found_wildcard.group(1) != "")
-								if label_only:
-									replacement = replace_label
-								else:
-									replacement = replace_path
-								self.inform(f"\tFound {'(label-only) ' if label_only else ''}prefix match for '{label}': {replacement}")
-							label_match_text = label_match_text[:found_wildcard.start()] + replacement + label_match_text[found_wildcard.end():]
+					# Handle wildcards in label path.
+					label_match_text = self.process_wildcards(label, label_match_text)
 					
 					# Split label path.
 					label_path_components = label_match_text.split(self._path_delimiter)
@@ -216,12 +196,6 @@ class TextIndex:
 					
 					# Remove quotes from path elements.
 					label_path_components = [component.strip("'\"") for component in label_path_components]
-					
-					# Process wildcards only if there's a preceding label to use for replacement.
-					if label:
-						# Handle replacing static wildcards with processed label.
-						label_path_components = [component.replace("**", emph(label, True).lower()) for component in label_path_components]
-						label_path_components = [component.replace("*", emph(label, True)) for component in label_path_components]
 					
 					last_component = label_path_components[-1]
 					if last_component != self._path_delimiter and last_component != "":
@@ -307,6 +281,10 @@ class TextIndex:
 				sort_match = re.search(r"\s*\~(['\"]?)(.+)\1$", params)
 				if sort_match:
 					sort_key = sort_match.group(2)
+					
+					# Handle wildcards in sort key.
+					sort_key = self.process_wildcards(span_contents, sort_key, True)
+					
 					self.inform(f"\tSort as: {sort_key}")
 					params = params[:sort_match.start()] + params[sort_match.end():]
 				
@@ -319,6 +297,10 @@ class TextIndex:
 					# Process aliases before splitting path.
 					if len(self.aliases) > 0 and len(refs_string) > 0:
 						refs_string = re.sub(TextIndex._alias_token_pattern, self.alias_replace, refs_string)
+					
+					# Handle wildcards in cross-refs.
+					refs_string = self.process_wildcards(span_contents, refs_string)
+					
 					refs = refs_string.split(self._refs_delimiter)
 					for ref in refs:
 						ref_type = self._see
@@ -329,6 +311,7 @@ class TextIndex:
 						else:
 							# Don't create a (page-)reference if there's a (non-also) cross-reference.
 							create_ref = False
+						
 						ref_path_components = ref.split(self._path_delimiter)
 						ref_path_components = [component.strip("'\"") for component in ref_path_components]
 						
@@ -423,6 +406,35 @@ class TextIndex:
 					created = True # If we create any entry in the chain, we create all subsequent ones too.
 		
 		return entry, (entry and not created)
+	
+	
+	def process_wildcards(self, label, text, force_label_only=False):
+		if label:
+			search_wildcard_pattern = r"\*\^(\-?)"
+			replacement = "*" # fall back on basic wildcard functionality.
+			found_item = None
+			replace_label = None
+			replace_path = None
+			found_wildcards = list(re.finditer(search_wildcard_pattern, text))
+			if len(found_wildcards) > 0:
+				found_item = self.prefix_search(label)
+			if found_item:
+				replace_label = f'"{found_item.label}"'
+				replace_path = self._path_delimiter.join(f'"{elem}"' for elem in found_item.path_list())
+			for found_wildcard in reversed(found_wildcards):
+				if found_item:
+					label_only = (found_wildcard.group(1) != "") or force_label_only
+					if label_only:
+						replacement = replace_label
+					else:
+						replacement = replace_path
+					self.inform(f"\tFound {'(label-only) ' if label_only else ''}prefix match for '{label}': {replacement}")
+				text = text[:found_wildcard.start()] + replacement + text[found_wildcard.end():]
+			
+			text = text.replace("**", emph(label, True).lower())
+			text = text.replace("*", emph(label, True))
+		
+		return text
 	
 	
 	def indexed_document(self):
