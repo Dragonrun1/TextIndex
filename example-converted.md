@@ -86,7 +86,7 @@ _N.B. Locators with emphasis are definitions._
 	<dt class="group-separator">&nbsp;</dt>
 	<dt><span class="entry-heading">boilerplate (standard text)</span><span class="entry-references">, <a class="locator" href="#idx34" data-index-id="34" data-index-id-elided="34"></a></span></dt>
 	<dt class="group-separator">&nbsp;</dt>
-	<dt><span class="entry-heading">case</span><span class="entry-references">. <em>See</em> uppercase; lowercase</span></dt>
+	<dt><span class="entry-heading">case</span><span class="entry-references">. <em>See</em> lowercase; uppercase</span></dt>
 	<dt><span class="entry-heading">chord</span><span class="entry-references">, <a class="locator" href="#idx26" data-index-id="26" data-index-id-elided="26"></a>, <em><a class="locator" href="#idx27" data-index-id="27" data-index-id-elided="27"></a></em>, <a class="locator" href="#idx30" data-index-id="30" data-index-id-elided="30"></a>, <a class="locator" href="#idx33" data-index-id="33" data-index-id-elided="33"></a></span></dt>
 	<dt><span class="entry-heading">combo</span><span class="entry-references">, <a class="locator" href="#idx23" data-index-id="23" data-index-id-elided="23"></a>, <em><a class="locator" href="#idx28" data-index-id="28" data-index-id-elided="28"></a></em>, <a class="locator" href="#idx29" data-index-id="29" data-index-id-elided="29"></a></span></dt>
 	<dt><span class="entry-heading">⌘ (Command/Super key)</span><span class="entry-references">, <a class="locator" href="#idx10" data-index-id="10" data-index-id-elided="10"></a>. <em>See also</em> Apple platforms</span></dt>

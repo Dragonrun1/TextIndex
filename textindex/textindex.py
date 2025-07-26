@@ -65,6 +65,7 @@ class TextIndex:
 	_emphasis_marker = "!"
 	_end_marker = "/"
 	_also_marker = "+"
+	_inbound_marker = "@"
 	
 	# Output
 	_range_separator = "–" # en-dash
@@ -303,25 +304,44 @@ class TextIndex:
 					
 					refs = refs_string.split(self._refs_delimiter)
 					for ref in refs:
+						inbound = False
 						ref_type = self._see
 						ref = ref.strip()
+						
+						if ref.startswith(self._inbound_marker):
+							inbound = True
+							ref = ref[len(self._inbound_marker):]
+						
 						if ref.startswith(self._also_marker):
 							ref_type = self._also
 							ref = ref[len(self._also_marker):]
-						else:
-							# Don't create a (page-)reference if there's a (non-also) cross-reference.
+						elif not inbound:
+							# Don't create a (page-)reference for this mark's entry if there's a (non-also) cross-reference.
 							create_ref = False
 						
 						ref_path_components = ref.split(self._path_delimiter)
 						ref_path_components = [component.strip("'\"") for component in ref_path_components]
 						
-						cross_references.append({self._ref_type: ref_type, self._path: ref_path_components})
+						if inbound:
+							# Cross-ref in different entry, referencing this mark's entry. Find other entry.
+							source_label = ref_path_components[-1]
+							source_path_components = []
+							if len(ref_path_components) > 1:
+								source_path_components = ref_path_components[:-1]
+							source_entry, existed = self.entry_at_path(source_label, source_path_components, True)
+							self.inform(f"\tCreating inbound '{ref_type}' cross-reference from entry '{source_label}' {'(Path: ' + source_path_components + ')' if len(ref_path_components) > 1 else '(at root)'}")
+							source_entry.cross_references.append({self._ref_type: ref_type, self._path: label_path_components + [label]})
+							
+						else:
+							# Cross-ref within this mark's entry.
+							cross_references.append({self._ref_type: ref_type, self._path: ref_path_components})
 					
 					params = params[:cross_match.start()] + params[cross_match.end():]
-					self.inform(f"\tCross-refs: {cross_references}")
+					if len(cross_references) > 0:
+						self.inform(f"\tCross-refs: {cross_references}")
 				
 				if len(params.strip()) > 0:
-					self.inform(f"Unparsed directive content: '{params}' (please report this!)", severity="warning")
+					self.inform(f"*** Unparsed directive content: '{params}' (please report this!) ***", severity="warning")
 				
 				# Prepare next reference id.
 				entry_number += 1
@@ -491,11 +511,16 @@ class TextIndex:
 		refs_output = False
 		if len(entry.cross_references) > 0:
 			for i in range(len(entry.cross_references)):
+				# First sort by path alphabetically.
+				entry.cross_references.sort(key=lambda d: ''.join(d[TextIndex._path]))
+				# Then sort the see-refs first.
+				entry.cross_references.sort(key=lambda d: d[TextIndex._ref_type], reverse=True)
+				
 				ref = entry.cross_references[i]
 				if ref[TextIndex._ref_type] == TextIndex._see:
-					refs_output = True
-					refs_html += (TextIndex._refs_delimiter if i > 0 else f'{TextIndex._category_separator}<em>{self.see_label.capitalize()}</em>')
+					refs_html += (TextIndex._refs_delimiter if refs_output else f'{TextIndex._category_separator}<em>{self.see_label.capitalize()}</em>')
 					refs_html += f' {TextIndex._path_separator.join(ref[TextIndex._path])}'
+					refs_output = True
 		
 		if len(entry.references) > 0:
 			loc_class = "locator"
