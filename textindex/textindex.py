@@ -48,11 +48,15 @@ class TextIndex:
 	_see_label = "see"
 	_see_also_label = "see also"
 	_index_id_prefix = "idx"
+	_group_headings = False
+	_should_run_in = True
 	
 	# Keys: index placeholder (also vals for cross-references ref-type)
 	_see = "see"
 	_also = "also"
 	_prefix = "prefix"
+	_headings = "headings"
+	_run_in = "run-in"
 	
 	# Keys: cross-references
 	_path = "path"
@@ -93,9 +97,12 @@ class TextIndex:
 		self._see_label = TextIndex._see_label
 		self._see_also_label = TextIndex._see_also_label
 		self._index_id_prefix = TextIndex._index_id_prefix
+		self._group_headings = TextIndex._group_headings
+		self._should_run_in = TextIndex._should_run_in
 		self._indexed_document = None
 		self.verbose = False
 		self.aliases = {}
+		self.depth = 0 # zero-based greatest depth
 	
 	
 	def inform(self, msg, severity="normal", force=False):
@@ -420,6 +427,10 @@ class TextIndex:
 				else:
 					self.inform(f"\tMaking new entry '{component}' ({'within \'' + entry.label + '\'' if entry else 'at root'})")
 					new_entry = TextIndexEntry(component, entry)
+					new_entry.textindex = self
+					entry_depth = new_entry.depth()
+					if entry_depth > self.depth:
+						self.depth = entry_depth
 					entries.append(new_entry)
 					entries = new_entry.entries
 					entry = new_entry
@@ -480,7 +491,9 @@ class TextIndex:
 			config_attrs = {
 											TextIndex._prefix: '_index_id_prefix',
 											TextIndex._see: '_see_label',
-											TextIndex._also: '_see_also_label'
+											TextIndex._also: '_see_also_label',
+											TextIndex._headings: '_group_headings',
+											TextIndex._run_in: '_should_run_in'
 											}
 			for key, attr in config_attrs.items():
 				param_match = re.search(rf"(?i){key}=(['\"])(.+?)\1", config_string)
@@ -492,10 +505,11 @@ class TextIndex:
 			html += f'<dl class="{TextIndex._shared_class} index">\n'
 			sorted_entries = self.sort_entries(self.entries)
 			letter = sorted_entries[0].sort_on()[0]
+			html += self.group_heading(letter, True)
 			for entry in sorted_entries:
 				next_letter = entry.sort_on()[0]
 				if next_letter != letter:
-					html += '\t<dt class="group-separator">&nbsp;</dt>\n'
+					html += self.group_heading(next_letter)
 					letter = next_letter
 				html += self.entry_html(entry)
 			html += "</dl>"
@@ -504,94 +518,96 @@ class TextIndex:
 		return html
 	
 	
+	def group_heading(self, letter, is_first=False):
+		output = ""
+		group_headings = self.group_headings_enabled
+		if group_headings or not is_first:
+			output += f'\t<dt class="group-separator{" group-heading" if group_headings else ""}">{letter if group_headings else "&nbsp;"}</dt>\n'
+		return output
+	
+	
 	def entry_html(self, entry):
-		refs_html = ""
-		
 		# Cross-refs (non-also), then ordered references, then parent's also-refs.
+		refs_html = ""
 		refs_output = False
-		if len(entry.cross_references) > 0:
-			for i in range(len(entry.cross_references)):
-				# First sort by path alphabetically.
-				entry.cross_references.sort(key=lambda d: ''.join(d[TextIndex._path]))
-				# Then sort the see-refs first.
-				entry.cross_references.sort(key=lambda d: d[TextIndex._ref_type], reverse=True)
-				
-				ref = entry.cross_references[i]
-				if ref[TextIndex._ref_type] == TextIndex._see:
-					refs_html += (TextIndex._refs_delimiter if refs_output else f'{TextIndex._category_separator}<em>{self.see_label.capitalize()}</em>')
-					refs_html += f' {TextIndex._path_separator.join(ref[TextIndex._path])}'
-					refs_output = True
+		running_in = entry.parent and entry.parent.run_in_children()
 		
-		if len(entry.references) > 0:
-			loc_class = "locator"
-			for i in range(len(entry.references)):
-				ref = entry.references[i]
-				refs_html += (TextIndex._category_separator if refs_output and i == 0 else TextIndex._field_separator)
-				locator_html = ""
-				
-				locator_html += f'<a class="{loc_class}" href="#{self.index_id_prefix}{ref[TextIndexEntry.start_id]}" data-index-id="{ref[TextIndexEntry.start_id]}" data-index-id-elided="{ref[TextIndexEntry.start_id]}"></a>'
-				if TextIndexEntry.end_id in ref:
-					elided_end = elide_end(ref[TextIndexEntry.start_id], ref[TextIndexEntry.end_id])
-					locator_html += TextIndex._range_separator
-					locator_html += f'<a class="{loc_class}" href="#{self.index_id_prefix}{ref[TextIndexEntry.end_id]}" data-index-id="{ref[TextIndexEntry.end_id]}" data-index-id-elided="{elided_end}"></a>'
-				if TextIndexEntry.suffix in ref and ref[TextIndexEntry.suffix]:
-					locator_html += f' {ref[TextIndexEntry.suffix]}'
-				if TextIndexEntry.end_suffix in ref and ref[TextIndexEntry.end_suffix]:
-					locator_html += f' {ref[TextIndexEntry.end_suffix]}'
-				if ref[TextIndexEntry.locator_emphasis]:
-					locator_html = f"<em>{locator_html}</em>"
-				refs_output = True
-				
-				refs_html += locator_html
+		# Entry's see-references.
+		has_xrefs = False
+		xrefs_html = entry.render_cross_references()
+		if xrefs_html != None:
+			if running_in:
+				refs_html += f" (<em>{self.see_label.lower()}</em> {xrefs_html})"
+			else:
+				refs_html += f"{TextIndex._category_separator}<em>{self.see_label.capitalize()}</em> {xrefs_html}"
+			refs_output = True
+			has_xrefs = True
+		
+		# Entry's references (locators).
+		has_refs = False
+		entry_refs_html = entry.render_references()
+		if entry_refs_html != None:
+			refs_html += (TextIndex._category_separator if refs_output else TextIndex._field_separator)
+			refs_html += entry_refs_html
+			refs_output = True
+			has_refs = True
+		
+		run_in_children = entry.run_in_children()
+		if run_in_children:
+			delim = self._category_separator # if has_xrefs but not has_refs
+			if has_refs:
+				delim = self._list_separator
+			elif not has_xrefs:
+				delim = self._path_separator
+			
+			if entry.has_children():
+				refs_html += delim
+			else:
+				refs_html += self._category_separator
+			
+			if entry.has_children():
+				child_entries = []
+				for child in self.sort_entries(entry.entries):
+					child_entries.append(self.entry_html(child))
+				refs_html += self._list_separator.join(child_entries)
 		
 		# Check whether we lack children and thus potentially need to inline our own see-also references.
 		# This provides run-in style for such references.
-		if len(entry.entries) == 0 and self.has_also_refs(entry):
-			refs_output = False
-			for i in range(len(entry.cross_references)):
-				ref = entry.cross_references[i]
-				if ref[TextIndex._ref_type] == TextIndex._also:
-					refs_html += (TextIndex._refs_delimiter if refs_output else f'{TextIndex._category_separator}<em>{self.see_also_label.capitalize()}</em>')
-					refs_html += f' {TextIndex._path_separator.join(ref[TextIndex._path])}'
-					refs_output = True
+		if (not entry.has_children() or run_in_children) and entry.has_also_refs():
+			alsorefs_html = entry.render_also_references()
+			if alsorefs_html != None:
+				if running_in:
+					refs_html += f" (<em>{self.see_also_label.lower()}</em> {alsorefs_html})"
+				else:
+					refs_html += f"{TextIndex._category_separator}<em>{self.see_also_label.capitalize()}</em> {alsorefs_html}"
+				refs_output = True
 		
+		# Create our assembled entry's HTML.
 		depth = entry.depth() + 1
 		indent = max((2 * depth - 1), 1) * '\t'
-		html = f'{indent}<dt><span class="entry-heading">{emph(entry.label) if entry.label else ""}</span><span class="entry-references">{refs_html}</span></dt>\n'
+		html = f'<span class="entry-heading">{emph(entry.label) if entry.label else ""}</span><span class="entry-references">{refs_html}</span>'
+		if not running_in:
+			html = f"{indent}<dt>{html}</dt>\n"
 		
-		# Children
-		if len(entry.entries) > 0:
-			html += f'{indent}<dd>\n{indent}\t<dl>\n'
-			for child in self.sort_entries(entry.entries):
-				html += self.entry_html(child)
-			html += f'{indent}\t</dl>\n{indent}</dd>\n'
+		# Handle subordinate indented elements.
+		if not run_in_children:
+			# Children, if indented.
+			if len(entry.entries) > 0:
+				html += f'{indent}<dd>\n{indent}\t<dl>\n'
+				for child in self.sort_entries(entry.entries):
+					html += self.entry_html(child)
+				html += f'{indent}\t</dl>\n{indent}</dd>\n'
 		
 		# Parent's see-also cross-references.
-		if self.has_also_refs(entry.parent):
-			refs_output = False
-			for i in range(len(entry.parent.cross_references)):
-				ref = entry.parent.cross_references[i]
-				if ref[TextIndex._ref_type] == TextIndex._also:
-					if not refs_output:
-						html += f'{indent}<dt><span class="entry-references">'
-					html += (TextIndex._refs_delimiter if refs_output else f'<em>{self.see_also_label.capitalize()}</em>')
-					html += f' {TextIndex._path_separator.join(ref[TextIndex._path])}'
-					refs_output = True
-			if refs_output:
+		if entry.parent and entry.parent.has_also_refs():
+			alsorefs_html = entry.parent.render_also_references()
+			if alsorefs_html != None:
+				html += f'{indent}<dt><span class="entry-references">'
+				html += f"<em>{self.see_also_label.capitalize()}</em> {alsorefs_html}"
 				html += '</span></dt>\n'		
-		
+				refs_output = True
 		
 		return html
-	
-	
-	def has_also_refs(self, entry):
-		also_xrefs = False
-		if entry and len(entry.cross_references) > 0:
-			for ent in entry.cross_references:
-				if ent[TextIndex._ref_type] == TextIndex._also:
-					also_xrefs = True
-					break
-		return also_xrefs
 	
 	
 	def sort_entries(self, entries):
@@ -611,6 +627,18 @@ class TextIndex:
 		return self._index_id_prefix
 	
 	
+	def get_group_headings_enabled(self):
+		if isinstance(self._group_headings, bool):
+			return self._group_headings
+		return self._group_headings.lower() == "true"
+	
+	
+	def get_should_run_in(self):
+		if isinstance(self._should_run_in, bool):
+			return self._should_run_in
+		return self._should_run_in.lower() == "true"
+	
+	
 	def set_see_label(self, val):
 		self._see_label = val
 		self._indexed_document = None
@@ -625,6 +653,25 @@ class TextIndex:
 		self._index_id_prefix = val
 		self._indexed_document = None
 	
+	
+	def set_group_headings_enabled(self, val):
+		if isinstance(val, str):
+			val = (val.lower() == "true")
+		elif not isinstance(val, bool):
+			val = False
+		self._group_headings = val
+		self._indexed_document = None
+	
+	
+	def set_should_run_in(self, val):
+		if isinstance(val, str):
+			val = (val.lower() == "true")
+		elif not isinstance(val, bool):
+			val = True
+		self._should_run_in = val
+		self._indexed_document = None
+	
+	
 	def prefix_search(self, text):
 		found = None
 		for entry in self.entries:
@@ -632,6 +679,7 @@ class TextIndex:
 			if found:
 				break
 		return found
+	
 	
 	def __len__(self):
 		num_entries = 0
@@ -652,6 +700,8 @@ class TextIndex:
 	see_label = property(get_see_label, set_see_label)
 	see_also_label = property(get_see_also_label, set_see_also_label)
 	index_id_prefix = property(get_index_id_prefix, set_index_id_prefix)
+	group_headings_enabled = property(get_group_headings_enabled, set_group_headings_enabled)
+	should_run_in = property(get_should_run_in, set_should_run_in)
 
 
 class TextIndexEntry:
@@ -671,6 +721,7 @@ class TextIndexEntry:
 		self.references = [] # list of dicts; see keys above.
 		self.cross_references = []
 		self.sort_key = None
+		self.textindex = None
 	
 	
 	def sort_on(self):
@@ -700,6 +751,34 @@ class TextIndexEntry:
 			level += 1
 		return level
 	
+	
+	def has_children(self):
+		return (len(self.entries) > 0)
+	
+	
+	def has_also_refs(self):
+		also_xrefs = False
+		if len(self.cross_references) > 0:
+			for ent in self.cross_references:
+				if ent[TextIndex._ref_type] == TextIndex._also:
+					also_xrefs = True
+					break
+		return also_xrefs
+	
+	
+	def run_in_children(self):
+		# Determines if this entry should be render its children in run-in style.
+		# Top-level entries are at level 0, and are considered children of the index itself.
+		# Depths 0 and 1 (top-level entries, and their sub-entries) are always indented.
+		# Thereafter, for practical reasons, only the deepest level is run-in.
+		# (Please don't make indexes deeper than root+2 levels though, for your readers' sake!)
+		
+		if self.textindex.should_run_in:
+			my_depth = self.depth()
+			return my_depth > 0 and my_depth == self.textindex.depth - 1
+		return False
+	
+	
 	def prefix_search(self, text):
 		found = None
 		if self.label.startswith(text):
@@ -710,6 +789,7 @@ class TextIndexEntry:
 				break
 		return found
 	
+	
 	def path_list(self):
 		components = [self.label]
 		par = self.parent
@@ -718,8 +798,80 @@ class TextIndexEntry:
 			par = par.parent
 		return components
 	
+	
+	def render_references(self):
+		refs = []
+		
+		if len(self.references) > 0:
+			loc_class = "locator"
+			for i in range(len(self.references)):
+				ref = self.references[i]
+				locator_html = f'<a class="{loc_class}" href="#{self.textindex.index_id_prefix}{ref[TextIndexEntry.start_id]}" data-index-id="{ref[TextIndexEntry.start_id]}" data-index-id-elided="{ref[TextIndexEntry.start_id]}"></a>'
+				if TextIndexEntry.end_id in ref:
+					elided_end = elide_end(ref[TextIndexEntry.start_id], ref[TextIndexEntry.end_id])
+					locator_html += TextIndex._range_separator
+					locator_html += f'<a class="{loc_class}" href="#{self.textindex.index_id_prefix}{ref[TextIndexEntry.end_id]}" data-index-id="{ref[TextIndexEntry.end_id]}" data-index-id-elided="{elided_end}"></a>'
+				if TextIndexEntry.suffix in ref and ref[TextIndexEntry.suffix]:
+					locator_html += f' {ref[TextIndexEntry.suffix]}'
+				if TextIndexEntry.end_suffix in ref and ref[TextIndexEntry.end_suffix]:
+					locator_html += f' {ref[TextIndexEntry.end_suffix]}'
+				if ref[TextIndexEntry.locator_emphasis]:
+					locator_html = f"<em>{locator_html}</em>"
+				
+				refs.append(locator_html)
+			
+			if len(refs) > 0:
+				return TextIndex._field_separator.join(refs)
+		
+		return None
+	
+	
+	def render_cross_references(self):
+		# See-type cross-references.
+		refs = []
+		
+		if len(self.cross_references) > 0:
+			self.sort_cross_refs()
+			
+			for i in range(len(self.cross_references)):
+				ref = self.cross_references[i]
+				if ref[TextIndex._ref_type] == TextIndex._see:
+					refs.append(f'{TextIndex._path_separator.join(ref[TextIndex._path])}')
+			if len(refs) > 0:
+				return f"{TextIndex._refs_delimiter} ".join(refs)
+			
+		return None
+	
+	
+	def render_also_references(self):
+		# Also-type cross-references.
+		refs = []
+		
+		if len(self.cross_references) > 0:
+			self.sort_cross_refs()
+			
+			for i in range(len(self.cross_references)):
+				ref = self.cross_references[i]
+				if ref[TextIndex._ref_type] == TextIndex._also:
+					refs.append(f'{TextIndex._path_separator.join(ref[TextIndex._path])}')
+			if len(refs) > 0:
+				return f"{TextIndex._refs_delimiter} ".join(refs)
+			
+		return None
+	
+	
+	def sort_cross_refs(self):
+		if len(self.cross_references) > 0:
+			# First sort by path alphabetically.
+			self.cross_references.sort(key=lambda d: ''.join(d[TextIndex._path]))
+			# Then sort the see-refs first.
+			self.cross_references.sort(key=lambda d: d[TextIndex._ref_type], reverse=True)
+	
+	
 	def __str__(self):
-		return f"Entry: {self.label} [{len(self.entries)} children]"
+		num_children = len(self.entries)
+		path_str = TextIndex._path_delimiter.join(self.path_list()[:-1])
+		return f"Entry: \"{self.label}\", depth {self.depth()} {'(' + path_str + TextIndex._path_delimiter +')' if path_str != '' else ''} [{num_children} child{'' if num_children == 1 else 'ren'}{', run-in' if self.run_in_children() else ', indented'}]"
 	
 	
 	def __bool__(self):

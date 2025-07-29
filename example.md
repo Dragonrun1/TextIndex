@@ -65,7 +65,6 @@ To be clear, then, in the context of keyboard layouts and configurations, we’d
 You can, of course, combine these concepts as you wish, for example by creating a two-key combo{^} which triggers a four-key chord{^}. This can be helpful in the common situation where an action is only occasionally needed, and thus doesn’t warrant a first-class single key of its own, but whose underlying chord is ergonomically{^#ergo>"concerns regarding"} awkward to press. In this context, a “combo chord” serves as a way to redefine a physically difficult pre-existing keyboard shortcut for more comfortable use.
 
 ## Macros
-
 {^safety>"regarding macro content"##macrosafety}
 
 Finally, and perhaps most niche, we come to macros. A macro{^macros|+#macrosafety!} could be seen as a close cousin of a chord: the chord{^} triggers multiple keystrokes simultaneously, whereas the macro triggers multiple keystrokes _in sequence_. In practice, macros tend to be used to quickly type commonly-needed chunks of text, like email addresses or other boilerplate{^"* (standard text)"}.

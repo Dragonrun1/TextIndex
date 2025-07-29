@@ -67,7 +67,6 @@ You can, of course, combine these concepts as you wish, for example by creating 
 ## Macros
 
 
-
 Finally, and perhaps most niche, we come to macros. A <span id="idx32" class="textindex">macro</span> could be seen as a close cousin of a chord: the <span id="idx33" class="textindex">chord</span> triggers multiple keystrokes simultaneously, whereas the macro triggers multiple keystrokes _in sequence_. In practice, macros tend to be used to quickly type commonly-needed chunks of text, like email addresses or other <span id="idx34" class="textindex">boilerplate</span>.
 
 The degree of use you may have for such things is up to you, but exercise <span id="idx35" class="textindex">caution</span>: any macros that are part of a keyboard layout are present in the keyboard’s own <span id="idx36" class="textindex">firmware</span>, and thus will still work when the keyboard is plugged into any other computer or device. Thus, macros should _never_ be used to fill-in sensitive information, such as payment details, passwords, and so on. Use biometrically-authenticated completion methods for these things instead, on your own trusted computers and smart devices only.

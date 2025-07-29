@@ -39,3 +39,14 @@ dl.index em a.locator {
 	}
 
 }
+
+.group-heading {
+	margin: 1.5em 0 0.5em 0;
+	text-transform: uppercase;
+	font-weight: bold;
+	border-bottom: 1px solid #999;
+}
+
+dl.index dt:first-child {
+	margin-top: 0;
+}
