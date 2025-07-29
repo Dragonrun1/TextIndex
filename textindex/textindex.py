@@ -487,6 +487,7 @@ class TextIndex:
 	def index_html(self, config_string=None):
 		if not self._indexed_document: self.create_index()
 		
+		# Process any parameters in the index directive.
 		if config_string:
 			config_attrs = {
 											TextIndex._prefix: '_index_id_prefix',
@@ -500,8 +501,13 @@ class TextIndex:
 				if param_match and param_match.group(2):
 					setattr(self, attr, param_match.group(2))
 		
+		# Generate HTML.
 		html = ""
 		if len(self.entries) > 0:
+			if self.should_run_in and self.depth > 1:
+				deepest = self.depth + 1
+				self.inform(f"Deep index. Level {deepest} entries will be run-in to level {deepest - 1}. See docs to disable.", severity="warning")
+			
 			html += f'<dl class="{TextIndex._shared_class} index">\n'
 			sorted_entries = self.sort_entries(self.entries)
 			letter = sorted_entries[0].sort_on()[0]
