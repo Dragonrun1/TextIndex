@@ -568,7 +568,7 @@ class TextIndex:
 			
 			if entry.has_children():
 				refs_html += delim
-			else:
+			elif entry.has_also_refs():
 				refs_html += self._category_separator
 			
 			if entry.has_children():
