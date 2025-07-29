@@ -605,7 +605,7 @@ class TextIndex:
 				html += f'{indent}\t</dl>\n{indent}</dd>\n'
 		
 		# Parent's see-also cross-references.
-		if entry.parent and entry.parent.has_also_refs():
+		if entry.parent and entry.parent.has_also_refs() and not running_in:
 			alsorefs_html = entry.parent.render_also_references()
 			if alsorefs_html != None:
 				html += f'{indent}<dt><span class="entry-references">'
