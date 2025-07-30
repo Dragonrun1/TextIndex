@@ -337,7 +337,7 @@ class TextIndex:
 								source_path_components = ref_path_components[:-1]
 							source_entry, existed = self.entry_at_path(source_label, source_path_components, True)
 							self.inform(f"\tCreating inbound '{ref_type}' cross-reference from entry '{source_label}' {'(Path: ' + source_path_components + ')' if len(ref_path_components) > 1 else '(at root)'}")
-							source_entry.cross_references.append({self._ref_type: ref_type, self._path: label_path_components + [label]})
+							source_entry.add_cross_reference(ref_type, label_path_components + [label])
 							
 						else:
 							# Cross-ref within this mark's entry.
@@ -382,7 +382,8 @@ class TextIndex:
 							self.inform(f"Altering existing sort-key for reference \"{display_entry_path}\" (was '{entry.sort_key}', now '{sort_key}'). Directive was: {directive.group(0)}", severity="warning")
 						entry.sort_key = sort_key
 					if len(cross_references) > 0:
-						entry.cross_references = entry.cross_references + cross_references
+						for ref in cross_references:
+							entry.add_cross_reference(ref[self._ref_type], ref[self._path])
 						if existed:
 							self.inform(f"\tAdded cross-references to existing entry '{label}'")
 				
@@ -766,7 +767,16 @@ class TextIndexEntry:
 														self.suffix: suffix,
 														self.locator_emphasis: locator_emphasis
 													})
-		
+	
+	
+	def add_cross_reference(self, ref_type, path):
+		# Check this isn't a duplicate.
+		if len(self.cross_references) > 0:
+			for ref in self.cross_references:
+				if ref[self.textindex._ref_type] == ref_type and ref[self.textindex._path] == path:
+					return	
+		self.cross_references.append({self.textindex._ref_type: ref_type, self.textindex._path: path})
+	
 	
 	def update_latest_ref_end(self, end_id, end_suffix=None):
 		self.references[-1][self.end_id] = end_id
