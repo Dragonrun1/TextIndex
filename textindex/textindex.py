@@ -504,9 +504,12 @@ class TextIndex:
 		# Generate HTML.
 		html = ""
 		if len(self.entries) > 0:
-			if self.should_run_in and self.depth > 1:
-				deepest = self.depth + 1
-				self.inform(f"Deep index. Level {deepest} entries will be run-in to level {deepest - 1}. See docs to disable.", severity="warning")
+			if self.depth > 1:
+				if self.should_run_in:
+					deepest = self.depth + 1
+					self.inform(f"Deep index (>2 levels). Level {deepest} entries will be run-in to level {deepest - 1}. See docs to disable.", severity="warning")
+				else:
+					self.inform(f"Deep index (>2 levels). Consider reducing depth, or enable run-in (see docs).", severity="warning")
 			
 			html += f'<dl class="{TextIndex._shared_class} index">\n'
 			sorted_entries = self.sort_entries(self.entries)
@@ -521,6 +524,28 @@ class TextIndex:
 			html += "</dl>"
 		else:
 			self.inform(f"No index entries defined.", severity="warning")
+
+		# Check size ratio of index to overall document.
+		# Remove HTML tags.
+		tag_strip_pattern = r"<.*?>"
+		stripped_doc = self._indexed_document
+		stripped_doc = re.sub(tag_strip_pattern, "", stripped_doc)
+		stripped_index = html
+		stripped_index = re.sub(tag_strip_pattern, "", stripped_index)
+		# Count words approximately.
+		wc_pattern = r"\b\w+\b"
+		words = re.findall(wc_pattern, stripped_doc)
+		wc_doc = len(words)
+		words = re.findall(wc_pattern, stripped_index)
+		wc_index = len(words)
+		# Assess ratio and warn if appropriate.
+		ratio = round((wc_index / wc_doc) * 100, 1)
+		low_bound, high_bound = 2, 6
+		if ratio < low_bound or ratio > high_bound:
+			self.inform(f"Index might be too {'short' if ratio < low_bound else 'long'} compared to document: ratio is {ratio}% (ideal: {low_bound}–{high_bound}%).", severity="warning")
+		else:
+			self.inform(f"Good index size ratio to document: {ratio}% (ideal: {low_bound}–{high_bound}%).")
+		
 		return html
 	
 	
