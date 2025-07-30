@@ -226,8 +226,7 @@ class TextIndex:
 						if alias_definition_match.start() > 0:
 							# Alias definition at end of an internally-specified label.
 							# Trim alias portion from label, and define.
-							self.aliases[alias_name] = {TextIndex._alias_path: label_path_components + [label]}
-							self.inform(f"\tDefined alias {TextIndex._alias_prefix}{alias_name} as: {self.aliases[alias_name]}")
+							self.define_alias(alias_name, label_path_components + [label])
 						else:
 							# Alias found at start of label. Either an alias reference, or a definition without an internal label (foo>#bar or just #bar).
 							if len(label_path_components) == 0:
@@ -241,15 +240,13 @@ class TextIndex:
 									# No path components, and an alias reference to a non-existent alias. Define a new alias instead.
 									if span_contents and len(span_contents) > 0:
 										label = span_contents
-										self.aliases[alias_name] = {TextIndex._alias_path: label_path_components + [label]}
-										self.inform(f"\tDefined alias {TextIndex._alias_prefix}{alias_name} as: {self.aliases[alias_name]}")
+										self.define_alias(alias_name, label_path_components + [label])
 							else:
 								# Path components exist, so this is an alias definition without an internal label.
 								if span_contents and len(span_contents) > 0:
 									# We already had a label from either a bracketed span, or implicitly. Define alias.
 									label = span_contents
-									self.aliases[alias_name] = {TextIndex._alias_path: label_path_components + [label]}
-									self.inform(f"\tDefined alias {TextIndex._alias_prefix}{alias_name} as: {self.aliases[alias_name]}")
+									self.define_alias(alias_name, label_path_components + [label])
 								else:
 									# No label specified either internally or previously; can't define an alias.
 									label = None
@@ -401,6 +398,15 @@ class TextIndex:
 		
 		self._indexed_document = indexed_doc
 	
+	
+	def define_alias(self, name, path):
+		redefinition = False
+		if name in self.aliases and self.aliases[name][TextIndex._alias_path] != path:
+				# Redefinition of existing alias.
+				redefinition = True
+		
+		self.aliases[name] = {TextIndex._alias_path: path}
+		self.inform(f"\t{'Redefined existing' if redefinition else 'Defined new'} alias {TextIndex._alias_prefix}{name} as: {self.aliases[name]}")
 	
 	def entry_at_path(self, label, path_list, create=True):
 		# Returns entry named label at path path_list, and whether it already existed or not.
