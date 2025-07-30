@@ -378,7 +378,7 @@ class TextIndex:
 						self.inform(f"Ignoring suffix/emphasis in cross-reference: {directive.group(0)}", severity="warning")
 					
 					if sort_key:
-						if entry.sort_key:
+						if entry.sort_key and entry.sort_key != sort_key:
 							self.inform(f"Altering existing sort-key for reference \"{display_entry_path}\" (was '{entry.sort_key}', now '{sort_key}'). Directive was: {directive.group(0)}", severity="warning")
 						entry.sort_key = sort_key
 					if len(cross_references) > 0:
