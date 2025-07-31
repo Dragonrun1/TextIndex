@@ -16,13 +16,13 @@ The matter of how to organise and distribute functionality using these methods i
 
 ## Layers
 
-The primary means of retaining the same amount of functionality despite having fewer physicals keys is to use layers{^}, which is a concept that’s already familiar to any keyboard user.{^layers>"Shift, concept of"##shiftlayer}
+The primary means of retaining the same amount of functionality despite having fewer physicals keys is to use layers{^}, which is a concept that’s already familiar to any keyboard user. {^layers>"Shift, concept of"##shiftlayer}
 
 The `Shift`{^"Shift (key)"|+#shiftlayer} key is a layer-toggling{^toggle>layer} key, for example, causing other physical keys to temporarily produce different keystrokes, such as uppercase{^} letters instead of lowercase{^}, symbols instead of numbers, and so on. This can be seen very clearly when using the virtual, on-screen keyboards on smartphones and other touch-screen devices, where shifted keys actually change their appearance to indicate their new functions. {^case|uppercase;lowercase}
 
 {^"Apple platforms"##apple}
 
-Viewed in this way, the `Shift` key is in fact a momentary toggle{^!} (i.e. something which only has effect while held down) into what can be thought of as the “Shift layer”{^#shiftlayer}. The modifier keys used for keyboard shortcuts on your operating system, such as the `Command`{^"⌘ (Command/Super key)" |+#apple ~"command key"} or ⌥{^"* (Alt/Option key)"#altkey |+#apple ~altkey} keys on [Apple platforms]{^#apple}, can also be thought of as a layer-toggling{^toggle>layer} key in the same manner. Smaller keyboards simply make use of additional layers compared to larger ones, and often have dedicated keys used to switch into those additional layers.
+Viewed in this way, the `Shift` key is in fact a momentary toggle{^!} (i.e. something which only has effect while held down) into what can be thought of as the [“Shift layer”]{^#shiftlayer}. The modifier keys used for keyboard shortcuts on your operating system, such as the `Command`{^"⌘ (Command/Super key)" |+#apple ~"command key"} or ⌥{^"* (Alt/Option key)"#altkey |+#apple ~altkey} keys on [Apple platforms]{^#apple}, can also be thought of as a layer-toggling{^toggle>layer} key in the same manner. Smaller keyboards simply make use of additional layers compared to larger ones, and often have dedicated keys used to switch into those additional layers.
 
 There are some popular layer setups you’ll encounter on many mechanical keyboards, but you should feel entirely free to create your own system. A common configuration is to have a layer-switching key in each thumb cluster, which provides access to a total of four layers (the base layer, the layer obtained by holding the left hand’s relevant thumb key, the layer for the right hand’s thumb key, and finally the layer for holding both thumb keys simultaneously).
 

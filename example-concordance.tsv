@@ -1,0 +1,16 @@
+# An example concordance file.
+
+=iPad|iPhone|Mac											"Apple platforms"			# The same quoting rules apply here as in index marks.
+(single-|double-)?tap(s|ped|ping)?		tap										# A silly example, just to demonstrate regular expressions.
+config(uration)?s?\b									|firmware
+simultaneous(ly)?											|combo;+chord
+layers?																toggle>layer
+
+# Columns are tab-separated. Multiple tabs can be used for readability, and will automatically be collapsed.
+# Column 1 can be a regular expression, and is implicitly case-INsensitive if all in lowercase.
+# If Column 1 is mixed-case, it is treated as case-sensitive. You can also prefix it with = to ensure case-sensitivity.
+# Whatever column 1 captures in the document will become a bracketed index mark, e.g. [col1]{^}
+# Column 2 is optional. If present, its contents are inserted literally into the mark {^HERE}
+# The usual rules apply about requiring quotation marks around heading-path segments containing whitespace.
+# Any columns after 2 are ignored, as are blank lines, lines with only whitespace, or lines beginning with #
+# The usual index marks syntax is supported in column 2, but aliases and locator suffixes/emphasis don't make much sense for bulk-marking.

@@ -7,10 +7,12 @@ parser = argparse.ArgumentParser(allow_abbrev=False)
 parser.add_argument('--verbose', '-v', help="[optional] Enable verbose logging", action="store_true", default=False)
 args=parser.parse_known_args()
 file_path = "example.md"
+conc_path = "example-concordance.tsv"
 verbose = (args[0].verbose == True)
 
 this_script_path = os.path.abspath(os.path.expanduser(sys.argv[0]))
 file_path = os.path.join(os.path.dirname(this_script_path), file_path)
+conc_path = os.path.join(os.path.dirname(this_script_path), conc_path)
 
 if len(args) > 1:
 	extra_args = args[1]
@@ -27,6 +29,7 @@ try:
 	# Process index.
 	index = textindex.TextIndex(file_contents)
 	index.verbose = verbose
+	index.load_concordance_file(os.path.abspath(conc_path))
 	file_contents = index.indexed_document()
 	
 	# Write out result to "-converted" file alongside original.
@@ -36,7 +39,14 @@ try:
 	output_file.write(file_contents)
 	output_file.close()
 	print(f"Wrote output file: {output_filename}")
- 
+	
+	if False:
+		# Write out concorded intermediate file for inspection.
+		output_filename = f"{basename}-concorded{sep}{ext}"
+		output_file = open(output_filename, 'w')
+		output_file.write(index.concorded_document)
+		output_file.close()
+
 except IOError as e:
 	print(f"Error: {e}")
 	sys.exit(1)

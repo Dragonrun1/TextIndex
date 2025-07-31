@@ -93,6 +93,7 @@ class TextIndex:
 	
 	def __init__(self, document_text=None):
 		self.original_document = document_text
+		self.concorded_document = None
 		self.entries = []
 		self._see_label = TextIndex._see_label
 		self._see_also_label = TextIndex._see_also_label
@@ -121,16 +122,126 @@ class TextIndex:
 			print(f"{prefix}{out}")
 	
 	
+	def load_concordance_file(self, path):
+		if not self.original_document or self.original_document == "":
+			self.inform(f"No document to index; ignoring concordance file.", severity="warning")
+			return
+		
+		# Load file.
+		import os
+		conc_contents = None
+		concordance = []
+		try:
+			path = os.path.abspath(os.path.expanduser(path))
+			conc_file = open(path, 'r')
+			conc_contents = conc_file.read()
+			conc_file.close()
+		
+		except IOError as e:
+			self.inform(f"Couldn't open concordance file: {e}", severity="error")
+			return
+		
+		if not conc_contents:
+			self.inform(f"Couldn't read concordance file: {path}", severity="error")
+		
+		# Duplicate original document to work with.
+		conc_doc = f"{self.original_document}"
+		
+		# Parse into entry-pattern lines.
+		for line in conc_contents.split("\n"):
+			if line.startswith("#") or re.fullmatch(r"^\s*$", line):
+				continue
+			line = re.sub(r"\t+", "\t", line) # Collapse tab-runs
+			components = line.strip('\n').split("\t") # split into columns
+			if len(components) > 0:
+				case_sensitive = False
+				if components[0].startswith("\\="):
+					# Since we use = as a prefix for case-sensitive, allow \= for literal equals by stripping \.
+					components[0] = components[0][1:]
+				elif components[0].startswith("="):
+					# Explicitly case-sensitive.
+					components[0] = components[0][1:]
+					case_sensitive = True
+				elif components[0] != components[0].lower():
+					# Implicitly case-sensitive because not all-lowercase.
+					case_sensitive = True
+				
+				if not case_sensitive:
+					components[0] = "(?i)" + components[0]
+				
+				if len(components) == 1:
+					components.append("") # Ensure second column for simplicity.
+				
+				concordance.append(components[:2]) # Discard anything after 2nd column.
+		
+		# Parse document for TextIndex marks, index directive, and HTML tag ranges to exclude.
+		excluded_ranges = []
+		excl_pattern = f"{self._index_placeholder_pattern}|(?:{self._index_directive_pattern})|<.*?>"
+		excl_matches = re.finditer(excl_pattern, conc_doc)
+		for excl in excl_matches:
+			excluded_ranges.append([excl.start(), excl.end()])
+			#print(f"Excluded range of: {excl.group(0)} ({excl.start()}, {excl.end()})")
+		
+		# Process concordance entries.
+		term_ranges = []
+		for conc in concordance:
+			# Match and replace this term expression wherever it doesn't intersect excluded ranges.
+			term_matches = re.finditer(conc[0], self.original_document)
+			new_exclusions = []
+			for term in term_matches:
+				# Check this isn't an excluded range.
+				is_excluded = False
+				for excl in excluded_ranges:
+					start, end = excl[0], excl[1]
+					if end <= term.start():
+						# This excluded range ends before term. Keep looking.
+						continue
+					elif start >= term.end():
+						# This excluded range starts after term. We're done.
+						break
+					elif term.start() >= start or term.end() <= end:
+						# This excluded range intersects term. Abort replacement.
+						is_excluded = True
+						#print(f"*** Excluded range '{self.original_document[start:end]}' intersects '{term.group(0)}' ***")
+						break
+				
+				if not is_excluded:
+					term_ranges.append([term.start(), term.end(), term.group(0), conc[1]])
+					new_exclusions.append([term.start(), term.end()])
+			
+			# Exclude found terms for this concordance from future matching.
+			excluded_ranges += new_exclusions
+			excluded_ranges.sort(key=lambda x: x[0])
+		
+		# Sort all term ranges by order of appearance.
+		term_ranges.sort(key=lambda x: x[0])
+		
+		# Insert suitable index marks.
+		offset = 0
+		marks_added = 0
+		for term in term_ranges:
+				mark = f"[{term[2]}]{{^{term[3]}}}"
+				conc_doc = conc_doc[:term[0] + offset] + mark + conc_doc[term[1] + offset:]
+				offset += (len(mark) - len(term[2]))
+				marks_added += 1
+		
+		# Make the intermediate concorded document available.
+		self.concorded_document = conc_doc
+		
+		# Log results.
+		self.inform(f"Concordance file processed. {len(concordance)} rules generated {marks_added} index marks.", force=True)
+
+	
 	def create_index(self):
 		entry_number = 0
 		if self.original_document:
-			indexed_doc = self.original_document
+			indexed_doc = f"{self.concorded_document if self.concorded_document else self.original_document}"
 			self.aliases = {}
 			
 			# Find all directives.
 			offset = 0 # accounting for replacements
 			enabled = True
-			directive_matches = re.finditer(TextIndex._index_directive_pattern, self.original_document)
+			directive_matches = re.finditer(TextIndex._index_directive_pattern, indexed_doc)
 			for directive in directive_matches:
 				
 				# Parse and encapsulate each entry, either as an object or a range-end.
