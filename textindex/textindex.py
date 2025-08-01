@@ -188,13 +188,16 @@ class TextIndex:
 			# Match and replace this term expression wherever it doesn't intersect excluded ranges.
 			term_matches = re.finditer(conc[0], self.original_document)
 			new_exclusions = []
+			last_checked = 0
 			for term in term_matches:
 				# Check this isn't an excluded range.
 				is_excluded = False
-				for excl in excluded_ranges:
+				for i in range(last_checked, len(excluded_ranges)):
+					excl = excluded_ranges[i]
 					start, end = excl[0], excl[1]
 					if end <= term.start():
 						# This excluded range ends before term. Keep looking.
+						last_checked = i
 						continue
 					elif start >= term.end():
 						# This excluded range starts after term. We're done.
