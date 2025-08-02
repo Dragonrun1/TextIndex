@@ -148,7 +148,7 @@ class TextIndex:
 			self.inform(f"Couldn't read concordance file: {path}", severity="error")
 		
 		# Duplicate original document to work with.
-		conc_doc = f"{self.original_document}"
+		conc_doc = f"{self.concorded_document if self.concorded_document else self.original_document}"
 		
 		# Parse into entry-pattern lines.
 		for line in conc_contents.split("\n"):
@@ -237,6 +237,101 @@ class TextIndex:
 		# Log results.
 		self.inform(f"Concordance file processed. {len(concordance)} rules generated {marks_added} index marks.", force=True)
 
+	
+	def convert_latex_index_commands(self):
+		if not self.original_document:
+			self.inform(f"No original document text; can't convert latex commands.", severity="warning")
+			return
+		
+		text = f"{self.concorded_document if self.concorded_document else self.original_document}"
+		offset = 0
+		marks_converted = 0
+		
+		latex_index_cmd_start = r"\\index\{"
+		latex_matches = re.finditer(latex_index_cmd_start, text)
+		for lmark in latex_matches:
+			# Scan string to find end of \index{…} command, ensuring all braces are balanced.
+			quit_after = 150
+			braces_open = 1
+			idx = lmark.end() + offset
+			while braces_open > 0 and idx < (len(text) - 1) and (idx - lmark.end() + offset) < quit_after:
+				if text[idx] == "}":
+					braces_open -= 1
+				elif text[idx] == "{":
+					braces_open += 1
+				idx += 1
+			
+			if braces_open != 0:
+				# Didn't find end of index command.
+				continue
+			
+			start, end = lmark.start() + offset, idx
+			entire_cmd = text[start:end]
+			cmd_content = entire_cmd[len(lmark.group(0)):-1]
+			
+			# Check for continuing locator syntax.
+			continuing = False
+			cont_match = re.search(r"\|([\(\)])$", cmd_content)
+			if cont_match:
+				if cont_match.group(1) == ")":
+					continuing = True
+				cmd_content = cmd_content[:0 - len(cont_match.group(0))]
+			
+			# Deal with emphasis commands, brace-wrapped.
+			cmd_content = re.sub(r"(?i)\\(?:textbf|textit|textsl|emph)\{([^\}]+)\}", r"_\1_", cmd_content)
+			
+			# Check for sort key (up to @).
+			sort_key = None
+			sort_match = re.match(r"([^@]+)@", cmd_content)
+			if sort_match:
+				sort_key = sort_match.group(1)
+				cmd_content = cmd_content[sort_match.end():]
+			
+			# Check for locator emphasis (braceless commands after |).
+			loc_emph = False
+			loc_emph_match = re.search(r"\|(?:textbf|textit|textsl|emph)$", cmd_content)
+			if loc_emph_match:
+				loc_emph = True
+				cmd_content = cmd_content[:loc_emph_match.start()]
+			
+			# Check for cross-references of both types.
+			xref = None
+			xref_match = re.search(r"\|(see(?:also)?)\s*\{([^\}]+)\}$", cmd_content)
+			if xref_match:
+				ref_type = xref_match.group(1)
+				ref_path = xref_match.group(2)
+				path_bits = re.split(r",\s*", ref_path)
+				ref_path = ">".join(f'"{elem}"' for elem in path_bits)
+				xref = f"{'+' if ref_type == 'seealso' else ''}{ref_path}"
+				cmd_content = cmd_content[:xref_match.start()]
+			
+			# Deal with hierarchy and quoting in heading.
+			heading_parts = cmd_content.split("!")
+			heading_path = ">".join(f'"{elem}"' for elem in heading_parts)
+			
+			# Construct suitable index mark.
+			mark_parts = [heading_path]
+			if xref:
+				mark_parts.append(f"|{xref}")
+			if sort_key:
+				mark_parts.append(f"~\"{sort_key}\"")
+			if continuing:
+				mark_parts.append("/")
+			elif loc_emph:
+				mark_parts.append("!")
+			mark = f"{{^{' '.join(mark_parts)}}}"
+			#self.inform(f"Converted latex index command:  {entire_cmd}  -->  {mark}")
+			
+			# Replace in document, maintaining text-delta offset.
+			text = text[:start] + mark + text[end:]
+			offset += (len(mark) - len(entire_cmd))
+			marks_converted += 1
+		
+		plural = '' if marks_converted == 1 else 's'
+		self.inform(f"{marks_converted} latex index command{plural} converted to index mark{plural}.", force=True)
+		
+		self.concorded_document = text
+	
 	
 	def create_index(self):
 		entry_number = 0

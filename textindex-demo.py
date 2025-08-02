@@ -29,6 +29,7 @@ try:
 	# Process index.
 	index = textindex.TextIndex(file_contents)
 	index.verbose = verbose
+	index.convert_latex_index_commands()
 	index.load_concordance_file(os.path.abspath(conc_path))
 	file_contents = index.indexed_document()
 	
