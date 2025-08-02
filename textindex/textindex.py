@@ -50,6 +50,7 @@ class TextIndex:
 	_index_id_prefix = "idx"
 	_group_headings = False
 	_should_run_in = True
+	_sort_emph_first = False
 	
 	# Keys: index placeholder (also vals for cross-references ref-type)
 	_see = "see"
@@ -57,6 +58,7 @@ class TextIndex:
 	_prefix = "prefix"
 	_headings = "headings"
 	_run_in = "run-in"
+	_emph_first = "emph-first"
 	
 	# Keys: cross-references
 	_path = "path"
@@ -100,6 +102,7 @@ class TextIndex:
 		self._index_id_prefix = TextIndex._index_id_prefix
 		self._group_headings = TextIndex._group_headings
 		self._should_run_in = TextIndex._should_run_in
+		self._sort_emph_first = TextIndex._sort_emph_first
 		self._indexed_document = None
 		self.verbose = False
 		self.aliases = {}
@@ -615,7 +618,8 @@ class TextIndex:
 											TextIndex._see: '_see_label',
 											TextIndex._also: '_see_also_label',
 											TextIndex._headings: '_group_headings',
-											TextIndex._run_in: '_should_run_in'
+											TextIndex._run_in: '_should_run_in',
+											TextIndex._emph_first: '_sort_emph_first',
 											}
 			for key, attr in config_attrs.items():
 				param_match = re.search(rf"(?i){key}=(['\"])(.+?)\1", config_string)
@@ -791,6 +795,12 @@ class TextIndex:
 		return self._should_run_in.lower() == "true"
 	
 	
+	def get_sort_emph_first(self):
+		if isinstance(self._sort_emph_first, bool):
+			return self._sort_emph_first
+		return self._sort_emph_first.lower() == "true"
+	
+	
 	def set_see_label(self, val):
 		self._see_label = val
 		self._indexed_document = None
@@ -824,6 +834,15 @@ class TextIndex:
 		self._indexed_document = None
 	
 	
+	def set_sort_emph_first(self, val):
+		if isinstance(val, str):
+			val = (val.lower() == "true")
+		elif not isinstance(val, bool):
+			val = True
+		self._sort_emph_first = val
+		self._indexed_document = None
+	
+	
 	def prefix_search(self, text):
 		found = None
 		for entry in self.entries:
@@ -854,6 +873,7 @@ class TextIndex:
 	index_id_prefix = property(get_index_id_prefix, set_index_id_prefix)
 	group_headings_enabled = property(get_group_headings_enabled, set_group_headings_enabled)
 	should_run_in = property(get_should_run_in, set_should_run_in)
+	sort_emph_first = property(get_sort_emph_first, set_sort_emph_first)
 
 
 class TextIndexEntry:
@@ -964,6 +984,8 @@ class TextIndexEntry:
 		refs = []
 		
 		if len(self.references) > 0:
+			if self.textindex.sort_emph_first:
+				self.references.sort(key=lambda d: d[TextIndexEntry.locator_emphasis], reverse=True)
 			loc_class = "locator"
 			for i in range(len(self.references)):
 				ref = self.references[i]
@@ -972,10 +994,12 @@ class TextIndexEntry:
 					elided_end = elide_end(ref[TextIndexEntry.start_id], ref[TextIndexEntry.end_id])
 					locator_html += TextIndex._range_separator
 					locator_html += f'<a class="{loc_class}" href="#{self.textindex.index_id_prefix}{ref[TextIndexEntry.end_id]}" data-index-id="{ref[TextIndexEntry.end_id]}" data-index-id-elided="{elided_end}"></a>'
+				suffix_applied = False
 				if TextIndexEntry.suffix in ref and ref[TextIndexEntry.suffix]:
-					locator_html += f' {ref[TextIndexEntry.suffix]}'
+					locator_html += f'{ref[TextIndexEntry.suffix]}'
+					suffix_applied = True
 				if TextIndexEntry.end_suffix in ref and ref[TextIndexEntry.end_suffix]:
-					locator_html += f' {ref[TextIndexEntry.end_suffix]}'
+					locator_html += f'{" " if suffix_applied else ""}{ref[TextIndexEntry.end_suffix]}'
 				if ref[TextIndexEntry.locator_emphasis]:
 					locator_html = f"<em>{locator_html}</em>"
 				

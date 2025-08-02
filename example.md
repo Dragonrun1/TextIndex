@@ -42,7 +42,7 @@ It’s worth noting that there is the matter of safety{^} when using keys with m
 
 If we imagine the contrived example of a key which when tapped would invoke Paste and when held would invoke Copy, it’s easy to see that a moment’s distraction, causing the key to be depressed slightly longer than intended, would be dangerous: the spurious and unwanted invocation of Copy instead of Paste would overwrite the data that was already on the pasteboard, causing annoyance and inconvenience at best, and possibly disaster at worst. The specific example is hopefully unlikely, but the general issue is worth remembering. 
 
-By contrast, the intersection of system keyboard shortcuts and tap dance{^#td[_passim_]/} keys can also be enormously convenient. Consider the case of cursor keys which behave normally when tapped, but which when held will act as if a modifier key had also been pressed; most operating systems use this mechanism to navigate and select text in granularities such as whole words, lines, sentences, and paragraphs. For users with corresponding needs, these configurations can be of significant benefit.
+By contrast, the intersection of system keyboard shortcuts and tap dance{^#td[ _passim_]/} keys can also be enormously convenient. Consider the case of cursor keys which behave normally when tapped, but which when held will act as if a modifier key had also been pressed; most operating systems use this mechanism to navigate and select text in granularities such as whole words, lines, sentences, and paragraphs. For users with corresponding needs, these configurations can be of significant benefit.
 
 ## Chords and Combos
 
