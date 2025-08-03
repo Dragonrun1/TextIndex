@@ -95,7 +95,7 @@ class TextIndex:
 	
 	def __init__(self, document_text=None):
 		self.original_document = document_text
-		self.concorded_document = None
+		self.intermediate_document = None
 		self.entries = []
 		self._see_label = TextIndex._see_label
 		self._see_also_label = TextIndex._see_also_label
@@ -148,7 +148,7 @@ class TextIndex:
 			self.inform(f"Couldn't read concordance file: {path}", severity="error")
 		
 		# Duplicate original document to work with.
-		conc_doc = f"{self.concorded_document if self.concorded_document else self.original_document}"
+		conc_doc = f"{self.intermediate_document if self.intermediate_document else self.original_document}"
 		
 		# Parse into entry-pattern lines.
 		for line in conc_contents.split("\n"):
@@ -232,7 +232,7 @@ class TextIndex:
 				marks_added += 1
 		
 		# Make the intermediate concorded document available.
-		self.concorded_document = conc_doc
+		self.intermediate_document = conc_doc
 		
 		# Log results.
 		self.inform(f"Concordance file processed. {len(concordance)} rules generated {marks_added} index marks.", force=True)
@@ -243,7 +243,7 @@ class TextIndex:
 			self.inform(f"No original document text; can't convert latex commands.", severity="warning")
 			return
 		
-		text = f"{self.concorded_document if self.concorded_document else self.original_document}"
+		text = f"{self.intermediate_document if self.intermediate_document else self.original_document}"
 		offset = 0
 		marks_converted = 0
 		
@@ -330,13 +330,13 @@ class TextIndex:
 		plural = '' if marks_converted == 1 else 's'
 		self.inform(f"{marks_converted} latex index command{plural} converted to index mark{plural}.", force=True)
 		
-		self.concorded_document = text
+		self.intermediate_document = text
 	
 	
 	def create_index(self):
 		entry_number = 0
 		if self.original_document:
-			indexed_doc = f"{self.concorded_document if self.concorded_document else self.original_document}"
+			indexed_doc = f"{self.intermediate_document if self.intermediate_document else self.original_document}"
 			self.aliases = {}
 			
 			# Find all directives.
