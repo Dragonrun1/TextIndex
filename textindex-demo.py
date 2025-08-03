@@ -43,9 +43,9 @@ try:
 	
 	if False:
 		# Write out concorded intermediate file for inspection.
-		output_filename = f"{basename}-concorded{sep}{ext}"
+		output_filename = f"{basename}-intermediate{sep}{ext}"
 		output_file = open(output_filename, 'w')
-		output_file.write(index.concorded_document)
+		output_file.write(index.intermediate_document)
 		output_file.close()
 
 except IOError as e:
