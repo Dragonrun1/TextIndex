@@ -320,7 +320,7 @@ class TextIndex:
 			elif loc_emph:
 				mark_parts.append("!")
 			mark = f"{{^{' '.join(mark_parts)}}}"
-			#self.inform(f"Converted latex index command:  {entire_cmd}  -->  {mark}")
+			self.inform(f"Converted latex index command:  {entire_cmd}  -->  {mark}")
 			
 			# Replace in document, maintaining text-delta offset.
 			text = text[:start] + mark + text[end:]
