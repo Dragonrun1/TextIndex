@@ -83,6 +83,7 @@ class TextIndex:
 	
 	_index_directive_pattern = r"(?:(?<!\\)\[([^\]<>]+)(?<!\\)\]|([^\s\[\]\{\}<>]++))*(?<!>)\{\^([^\}<\n]*)\}(?!<)"
 	_index_placeholder_pattern = r"(?im)^\{index\s*([^\}]*)\s*\}"
+	_markdown_heading_pattern = r"^(#{1,6})\s*([^\{]+?)\s*?(?:\{([^\}]*?)\})?\s*$"
 	_disable = "-"
 	_enable = "+"
 	
@@ -107,6 +108,7 @@ class TextIndex:
 		self.verbose = False
 		self.aliases = {}
 		self.depth = 0 # zero-based greatest depth
+		self.section_mode = False
 	
 	
 	def inform(self, msg, severity="normal", force=False):
@@ -333,17 +335,144 @@ class TextIndex:
 		self.intermediate_document = text
 	
 	
+	def string_to_slug(self, text):
+		# Strip quotes
+		text = re.sub(r'[\'"“”‘’]+', '', text)
+		
+		# Replace non-alphanumeric characters with whitespace
+		text = re.sub(r'\W+', ' ', text)
+		
+		# Replace whitespace runs with single hyphens
+		text = re.sub(r'\s+', '-', text)
+		
+		# Remove leading and trailing hyphens
+		text = text.strip('-')
+		
+		# Return in lowercase
+		return text.lower()
+	
+	
+	def render_markdown_heading(self, heading_line, extra_attrs_string=None):
+		# Renders a Markdown heading as HTML, respecting attribute strings. Optional extra attrs will be parsed and incorporated.
+		html = ""
+		# Renders a Markdown heading as HTML, respecting attribute strings. Optional extra attrs will be parsed and incorporated.
+		
+		head_match = re.match(TextIndex._markdown_heading_pattern, heading_line)
+		if head_match:
+			head_level = len(head_match.group(1))
+			title = head_match.group(2).strip()
+			
+			tag_id = None
+			tag_classes = []
+			tag_attrs = {}
+			
+			for attr_str in [head_match.group(3), extra_attrs_string]:
+				if attr_str:
+					# Parse attribute string like '.class #id key=val'.
+					pattern = re.compile(r'([.#][\w:-]+|[\w:-]+=(?:"[^"]*"|\'[^\']*\'|[^\s]*)|[\w\-\.]+)')
+					for match in pattern.findall(attr_str):
+						item = match
+						if item.startswith('.') and not item[1:] in tag_classes:
+							tag_classes.append(item[1:])
+						elif item.startswith('#'):
+							tag_id = item[1:]
+						elif "=" in item:
+							key, _, val = item.partition('=')
+							val = val or ""
+							this_key = key
+							val = val.strip('"\'')
+							tag_attrs[this_key] = val
+			
+			if not tag_id:
+				tag_id = self.string_to_slug(title)
+			
+			attrs_html = ""
+			if tag_id:
+				attrs_html += f' id="{tag_id}"'
+			if len(tag_classes) > 0:
+				attrs_html += f' class="{" ".join(tag_classes)}"'
+			for k, v in tag_attrs.items():
+				attrs_html += f' {k}="{v}"'
+			
+			return f'<h{head_level}{attrs_html}>{title}</h{head_level}>'
+		
+		return None
+	
+	
 	def create_index(self):
 		entry_number = 0
 		if self.original_document:
 			indexed_doc = f"{self.intermediate_document if self.intermediate_document else self.original_document}"
 			self.aliases = {}
 			
+			# Determine mode.
+			idx_placeholders = re.finditer(TextIndex._index_placeholder_pattern, indexed_doc)
+			for placeholder in idx_placeholders:
+				if re.search(r"\bsection\b", placeholder.group(0)):
+					self.section_mode = True
+					self.inform(f"Section mode enabled for all index directives in document.", force=True)
+					break
+				
 			# Find all directives.
 			offset = 0 # accounting for replacements
+			last_mark_end = 0
 			enabled = True
+			section_number = None
+			section_stack = []
+			prev_heading_level = 1
 			directive_matches = re.finditer(TextIndex._index_directive_pattern, indexed_doc)
 			for directive in directive_matches:
+				
+				if self.section_mode:
+					# Handle intervening headings.
+					headings = re.finditer(TextIndex._markdown_heading_pattern, indexed_doc[last_mark_end:directive.start() + offset], re.MULTILINE)
+					if headings:
+						num_heads = 0
+						delta = 0
+						for head_match in headings:
+							hashes, title, attr_str = head_match.group(1), head_match.group(2), head_match.group(3)
+							head_level = len(hashes)
+							title = title.strip()
+							
+							increment_section = True
+							if attr_str and re.search(r"(?i)\.(no-?toc|unlisted)\b", attr_str):
+								increment_section = False
+							
+							if len(section_stack) == 0:
+								# Treat the first heading as root level, even if not h1.
+								prev_heading_level = head_level
+								section_stack.append(0)
+							if increment_section:
+								if head_level == prev_heading_level:
+									section_stack[-1] += 1
+								elif head_level > prev_heading_level:
+									for x in range(prev_heading_level, head_level - 1):
+										section_stack.append(0)
+									section_stack.append(1)
+								else:
+									for x in range(head_level, prev_heading_level):
+										section_stack.pop()
+									section_stack[-1] += 1
+								prev_heading_level = head_level
+							
+							# Format section number for use as an attribute in headings and index locators.
+							section_number = '.'.join(str(i) for i in section_stack)
+							
+							# Apply section number to its heading, by rendering the Markdown heading as HTML, preserving braced attributes.
+							markdown_heading = head_match.group(0)
+							html_heading = self.render_markdown_heading(markdown_heading, f'.heading-section data-section="{section_number}"' if increment_section else None) + '\n'
+							#print(f"Encountered heading: {markdown_heading}\n\tSection is: {section_number}\n\tWould rewrite as: {html_heading}")
+							
+							# Perform heading replacement in the document.
+							start = last_mark_end + head_match.start() + delta
+							end = last_mark_end + head_match.end() + delta
+							#segment = indexed_doc[start:end]
+							indexed_doc = indexed_doc[:start] + html_heading + indexed_doc[end:]
+							delta += (len(html_heading) - len(markdown_heading))
+							num_heads += 1
+						
+						offset += delta
+						last_mark_end = directive.start() + offset
 				
 				# Parse and encapsulate each entry, either as an object or a range-end.
 				self.inform(f"Directive found: {directive.group(0)}")
@@ -574,7 +703,7 @@ class TextIndex:
 					if len(entry.references) > 0:
 						if TextIndexEntry.end_id in entry.references[-1]:
 							self.inform(f"Altering existing end-location of range for reference \"{display_entry_path}\": {directive.group(0)}", severity="warning")
-						entry.update_latest_ref_end(entry_number, suffix)
+						entry.update_latest_ref_end(entry_number, suffix, section_number)
 						self.inform(f"\tSet end-location for reference to \"{display_entry_path}\".")
 					else:
 						# Entry exists, but has no references, so we can't set an end id.
@@ -582,7 +711,7 @@ class TextIndex:
 				else:
 					# We now have the correct entry, whether it existed before or not. Populate.
 					if create_ref:
-						entry.add_reference(entry_number, suffix, emphasis)
+						entry.add_reference(entry_number, suffix, emphasis, section_number)
 					elif suffix or emphasis:
 						self.inform(f"Ignoring suffix/emphasis in cross-reference: {directive.group(0)}", severity="warning")
 					
@@ -601,6 +730,7 @@ class TextIndex:
 				indexed_doc = indexed_doc[:directive.start() + offset] + span_html + indexed_doc[directive.end() + offset:]
 				delta = len(span_html) - len(directive.group(0))
 				offset += delta
+				last_mark_end = directive.end() + offset
 			
 			self.inform(f"{len(self)} entries created.", force=True)
 			
@@ -976,6 +1106,8 @@ class TextIndexEntry:
 	# Keys for dicts in instances' self.references list.
 	start_id = "start-id"
 	end_id = "end-id"
+	section_start = "start-section"
+	section_end = "start-end"
 	suffix = "suffix"
 	end_suffix = "end-suffix"
 	locator_emphasis = "locator-emphasis"
@@ -995,13 +1127,15 @@ class TextIndexEntry:
 		return (self.sort_key if self.sort_key else emph(self.label, True)).lower()
 	
 	
-	def add_reference(self, start_id, suffix=None, locator_emphasis=False):
+	def add_reference(self, start_id, suffix=None, locator_emphasis=False, section=None):
 		self.references.append({
 														TextIndex._ref_type: TextIndex._reference,
 														self.start_id: start_id,
 														self.suffix: suffix,
 														self.locator_emphasis: locator_emphasis
 													})
+		if section:
+			self.references[-1][self.section_start] = section
 	
 	
 	def add_cross_reference(self, ref_type, path):
@@ -1013,10 +1147,12 @@ class TextIndexEntry:
 		self.cross_references.append({self.textindex._ref_type: ref_type, self.textindex._path: path})
 	
 	
-	def update_latest_ref_end(self, end_id, end_suffix=None):
+	def update_latest_ref_end(self, end_id, end_suffix=None, end_section=None):
 		self.references[-1][self.end_id] = end_id
 		if end_suffix:
 			self.references[-1][self.end_suffix] = end_suffix
+		if end_section:
+			self.references[-1][self.section_end] = end_section
 	
 	
 	def depth(self):
@@ -1075,20 +1211,51 @@ class TextIndexEntry:
 		return components
 	
 	
+	def joined_path(self):
+		return self.textindex._path_delimiter.join(f'"{elem}"' for elem in self.path_list())
+	
+	
 	def render_references(self):
 		refs = []
 		
 		if len(self.references) > 0:
-			if self.textindex.sort_emph_first:
-				self.references.sort(key=lambda d: d[TextIndexEntry.locator_emphasis], reverse=True)
+			the_refs = self.references
+			
+			# Handle section mode; de-duplicate sections (some may be continuing), prioritising emphasis.
+			if self.textindex.section_mode:
+				# Sort emphasised first.
+				the_refs = sorted(the_refs, key=lambda d: d[TextIndexEntry.locator_emphasis], reverse=True)
+				# Treat continuing locators with same start and end section as separate locators for de-duplication.
+				for this in the_refs:
+					if TextIndexEntry.section_end in this and this[TextIndexEntry.section_end] == this[TextIndexEntry.section_start]:
+						this.pop(TextIndexEntry.section_end)
+				deduped = []
+				for this in the_refs:
+					# Use reference if it doesn't have an exact (section start and end) match already.
+					sec_tuples = [[i.get(f) for f in [TextIndexEntry.section_start, TextIndexEntry.section_end]] for i in deduped]
+					this_tuple = [this.get(TextIndexEntry.section_start), this.get(TextIndexEntry.section_end)]
+					if this_tuple not in sec_tuples:
+						deduped.append(this)
+					else:
+						self.textindex.inform(f"Omitting duplicate section reference {this[TextIndexEntry.section_start]} for {self.joined_path()}.", force=True)
+				the_refs = deduped
+				if not self.textindex.sort_emph_first:
+					deduped = sorted(deduped, key=lambda d: d[TextIndexEntry.start_id])
+			
+			# Respect emphasis-first option.
+			if self.textindex.sort_emph_first and not self.textindex.section_mode:
+				the_refs = sorted(the_refs, key=lambda d: d[TextIndexEntry.locator_emphasis], reverse=True)
+			
 			loc_class = "locator"
-			for i in range(len(self.references)):
-				ref = self.references[i]
-				locator_html = f'<a class="{loc_class}" href="#{self.textindex.index_id_prefix}{ref[TextIndexEntry.start_id]}" data-index-id="{ref[TextIndexEntry.start_id]}" data-index-id-elided="{ref[TextIndexEntry.start_id]}"></a>'
-				if TextIndexEntry.end_id in ref:
+			for i in range(len(the_refs)):
+				ref = the_refs[i]
+				sec_start = f' data-section="{ref[TextIndexEntry.section_start]}"' if TextIndexEntry.section_start in ref else ''
+				locator_html = f'<a class="{loc_class}" href="#{self.textindex.index_id_prefix}{ref[TextIndexEntry.start_id]}" data-index-id="{ref[TextIndexEntry.start_id]}" data-index-id-elided="{ref[TextIndexEntry.start_id]}"{sec_start}></a>'
+				if (self.textindex.section_mode and TextIndexEntry.section_end in ref) or (not self.textindex.section_mode and TextIndexEntry.end_id in ref):
 					elided_end = elide_end(ref[TextIndexEntry.start_id], ref[TextIndexEntry.end_id])
+					sec_end = f' data-section="{ref[TextIndexEntry.section_end]}"' if TextIndexEntry.section_end in ref else ''
 					locator_html += TextIndex._range_separator
-					locator_html += f'<a class="{loc_class}" href="#{self.textindex.index_id_prefix}{ref[TextIndexEntry.end_id]}" data-index-id="{ref[TextIndexEntry.end_id]}" data-index-id-elided="{elided_end}"></a>'
+					locator_html += f'<a class="{loc_class}" href="#{self.textindex.index_id_prefix}{ref[TextIndexEntry.end_id]}" data-index-id="{ref[TextIndexEntry.end_id]}" data-index-id-elided="{elided_end}"{sec_end}></a>'
 				suffix_applied = False
 				if TextIndexEntry.suffix in ref and ref[TextIndexEntry.suffix]:
 					locator_html += f'{ref[TextIndexEntry.suffix]}'
