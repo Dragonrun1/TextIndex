@@ -394,7 +394,7 @@ class TextIndex:
 			for k, v in tag_attrs.items():
 				attrs_html += f' {k}="{v}"'
 			
-			return f'<h{head_level}{attrs_html}>{title}</h{head_level}>'
+			return f'<h{head_level}{attrs_html}><a href="#{tag_id}">{title}</a></h{head_level}>'
 		
 		return None
 	
