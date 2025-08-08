@@ -23,6 +23,10 @@ dl.index > dt.group-separator {
 	break-before: avoid-column;
 }
 
+dl.index a.entry-link {
+	color: inherit;
+}
+
 dl.index a.locator {
 	text-decoration: none;
 }

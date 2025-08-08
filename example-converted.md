@@ -80,69 +80,69 @@ With the advent of pervasive system-wide autocompletion, text-expansion, and cre
 _N.B. Locators with emphasis are definitions._
 
 <dl class="textindex index">
-	<dt><span class="entry-heading">⌥ (Alt/Option key)</span><span class="entry-references">, <a class="locator" href="#idx13" data-index-id="13" data-index-id-elided="13"></a>. <em>See also</em> Apple platforms</span></dt>
-	<dt><span class="entry-heading">Apple platforms</span><span class="entry-references">, <a class="locator" href="#idx14" data-index-id="14" data-index-id-elided="14"></a>, <a class="locator" href="#idx68" data-index-id="68" data-index-id-elided="68"></a>, <a class="locator" href="#idx69" data-index-id="69" data-index-id-elided="69"></a>, <a class="locator" href="#idx70" data-index-id="70" data-index-id-elided="70"></a>, <a class="locator" href="#idx79" data-index-id="79" data-index-id-elided="79"></a>, <a class="locator" href="#idx85" data-index-id="85" data-index-id-elided="85"></a></span></dt>
+	<dt><span id="entry10" class="entry-heading">⌥ (Alt/Option key)</span><span class="entry-references">, <a class="locator" href="#idx13" data-index-id="13" data-index-id-elided="13"></a>. <em>See also</em> <a class="entry-link" href="#entry11">Apple platforms</a></span></dt>
+	<dt><span id="entry11" class="entry-heading">Apple platforms</span><span class="entry-references">, <a class="locator" href="#idx14" data-index-id="14" data-index-id-elided="14"></a>, <a class="locator" href="#idx68" data-index-id="68" data-index-id-elided="68"></a>, <a class="locator" href="#idx69" data-index-id="69" data-index-id-elided="69"></a>, <a class="locator" href="#idx70" data-index-id="70" data-index-id-elided="70"></a>, <a class="locator" href="#idx79" data-index-id="79" data-index-id-elided="79"></a>, <a class="locator" href="#idx85" data-index-id="85" data-index-id-elided="85"></a></span></dt>
 	<dt class="group-separator">&nbsp;</dt>
-	<dt><span class="entry-heading">boilerplate (standard text)</span><span class="entry-references">, <a class="locator" href="#idx89" data-index-id="89" data-index-id-elided="89"></a></span></dt>
+	<dt><span id="entry27" class="entry-heading">boilerplate (standard text)</span><span class="entry-references">, <a class="locator" href="#idx89" data-index-id="89" data-index-id-elided="89"></a></span></dt>
 	<dt class="group-separator">&nbsp;</dt>
-	<dt><span class="entry-heading">case</span><span class="entry-references">. <em>See</em> lowercase; uppercase</span></dt>
-	<dt><span class="entry-heading">chord</span><span class="entry-references">, <a class="locator" href="#idx73" data-index-id="73" data-index-id-elided="73"></a>, <em><a class="locator" href="#idx77" data-index-id="77" data-index-id-elided="77"></a></em>, <a class="locator" href="#idx83" data-index-id="83" data-index-id-elided="83"></a>, <a class="locator" href="#idx87" data-index-id="87" data-index-id-elided="87"></a></span></dt>
-	<dt><span class="entry-heading">combo</span><span class="entry-references">, <a class="locator" href="#idx66" data-index-id="66" data-index-id-elided="66"></a>, <em><a class="locator" href="#idx81" data-index-id="81" data-index-id-elided="81"></a></em>, <a class="locator" href="#idx82" data-index-id="82" data-index-id-elided="82"></a></span></dt>
-	<dt><span class="entry-heading">⌘ (Command/Super key)</span><span class="entry-references">, <a class="locator" href="#idx12" data-index-id="12" data-index-id-elided="12"></a>. <em>See also</em> Apple platforms</span></dt>
-	<dt><span class="entry-heading">configuration</span><span class="entry-references">. <em>See</em> firmware</span></dt>
-	<dt><span class="entry-heading">configurations</span><span class="entry-references">. <em>See</em> firmware</span></dt>
+	<dt><span id="entry7" class="entry-heading">case</span><span class="entry-references">. <em>See</em> <a class="entry-link" href="#entry6">lowercase</a>; <a class="entry-link" href="#entry5">uppercase</a></span></dt>
+	<dt><span id="entry24" class="entry-heading">chord</span><span class="entry-references">, <a class="locator" href="#idx73" data-index-id="73" data-index-id-elided="73"></a>, <em><a class="locator" href="#idx77" data-index-id="77" data-index-id-elided="77"></a></em>, <a class="locator" href="#idx83" data-index-id="83" data-index-id-elided="83"></a>, <a class="locator" href="#idx87" data-index-id="87" data-index-id-elided="87"></a></span></dt>
+	<dt><span id="entry22" class="entry-heading">combo</span><span class="entry-references">, <a class="locator" href="#idx66" data-index-id="66" data-index-id-elided="66"></a>, <em><a class="locator" href="#idx81" data-index-id="81" data-index-id-elided="81"></a></em>, <a class="locator" href="#idx82" data-index-id="82" data-index-id-elided="82"></a></span></dt>
+	<dt><span id="entry9" class="entry-heading">⌘ (Command/Super key)</span><span class="entry-references">, <a class="locator" href="#idx12" data-index-id="12" data-index-id-elided="12"></a>. <em>See also</em> <a class="entry-link" href="#entry11">Apple platforms</a></span></dt>
+	<dt><span id="entry12" class="entry-heading">configuration</span><span class="entry-references">. <em>See</em> <a class="entry-link" href="#entry16">firmware</a></span></dt>
+	<dt><span id="entry21" class="entry-heading">configurations</span><span class="entry-references">. <em>See</em> <a class="entry-link" href="#entry16">firmware</a></span></dt>
 	<dt class="group-separator">&nbsp;</dt>
-	<dt><span class="entry-heading">destructive</span><span class="entry-references">. <em>See</em> safety</span></dt>
+	<dt><span id="entry20" class="entry-heading">destructive</span><span class="entry-references">. <em>See</em> <a class="entry-link" href="#entry19">safety</a></span></dt>
 	<dt class="group-separator">&nbsp;</dt>
-	<dt><span class="entry-heading">ergonomics</span><span class="entry-references">, <a class="locator" href="#idx71" data-index-id="71" data-index-id-elided="71"></a></span></dt>
+	<dt><span id="entry23" class="entry-heading">ergonomics</span><span class="entry-references">, <a class="locator" href="#idx71" data-index-id="71" data-index-id-elided="71"></a></span></dt>
 	<dd>
 		<dl>
-			<dt><span class="entry-heading">concerns regarding</span><span class="entry-references">, <a class="locator" href="#idx84" data-index-id="84" data-index-id-elided="84"></a></span></dt>
-			<dt><span class="entry-references"><em>See also</em> safety</span></dt>
+			<dt><span id="entry25" class="entry-heading">concerns regarding</span><span class="entry-references">, <a class="locator" href="#idx84" data-index-id="84" data-index-id-elided="84"></a></span></dt>
+			<dt><span class="entry-references"><em>See also</em> <a class="entry-link" href="#entry19">safety</a></span></dt>
 		</dl>
 	</dd>
 	<dt class="group-separator">&nbsp;</dt>
-	<dt><span class="entry-heading">firmware</span><span class="entry-references">, <a class="locator" href="#idx33" data-index-id="33" data-index-id-elided="33"></a>, <a class="locator" href="#idx91" data-index-id="91" data-index-id-elided="91"></a>. <em>See also</em> QMK; ZMK</span></dt>
+	<dt><span id="entry16" class="entry-heading">firmware</span><span class="entry-references">, <a class="locator" href="#idx33" data-index-id="33" data-index-id-elided="33"></a>, <a class="locator" href="#idx91" data-index-id="91" data-index-id-elided="91"></a>. <em>See also</em> <a class="entry-link" href="#entry15">QMK</a>; <a class="entry-link" href="#entry18">ZMK</a></span></dt>
 	<dt class="group-separator">&nbsp;</dt>
-	<dt><span class="entry-heading">layers</span><span class="entry-references">, <a class="locator" href="#idx4" data-index-id="4" data-index-id-elided="4"></a></span></dt>
+	<dt><span id="entry3" class="entry-heading">layers</span><span class="entry-references">, <a class="locator" href="#idx4" data-index-id="4" data-index-id-elided="4"></a></span></dt>
 	<dd>
 		<dl>
-			<dt><span class="entry-heading">Shift, concept of</span><span class="entry-references">, <a class="locator" href="#idx11" data-index-id="11" data-index-id-elided="11"></a></span></dt>
+			<dt><span id="entry8" class="entry-heading">Shift, concept of</span><span class="entry-references">, <a class="locator" href="#idx11" data-index-id="11" data-index-id-elided="11"></a></span></dt>
 		</dl>
 	</dd>
-	<dt><span class="entry-heading">lowercase</span><span class="entry-references">, <a class="locator" href="#idx8" data-index-id="8" data-index-id-elided="8"></a></span></dt>
+	<dt><span id="entry6" class="entry-heading">lowercase</span><span class="entry-references">, <a class="locator" href="#idx8" data-index-id="8" data-index-id-elided="8"></a></span></dt>
 	<dt class="group-separator">&nbsp;</dt>
-	<dt><span class="entry-heading">macros</span><span class="entry-references">, <em><a class="locator" href="#idx86" data-index-id="86" data-index-id-elided="86"></a></em></span></dt>
+	<dt><span id="entry26" class="entry-heading">macros</span><span class="entry-references">, <em><a class="locator" href="#idx86" data-index-id="86" data-index-id-elided="86"></a></em></span></dt>
 	<dd>
 		<dl>
-			<dt><span class="entry-heading">relevance of</span><span class="entry-references">, <a class="locator" href="#idx92" data-index-id="92" data-index-id-elided="92"></a></span></dt>
-			<dt><span class="entry-references"><em>See also</em> safety: regarding macro content</span></dt>
-		</dl>
-	</dd>
-	<dt class="group-separator">&nbsp;</dt>
-	<dt><span class="entry-heading">overloading</span><span class="entry-references">, <a class="locator" href="#idx2" data-index-id="2" data-index-id-elided="2"></a>. <em>See also</em> tap dance</span></dt>
-	<dt class="group-separator">&nbsp;</dt>
-	<dt><span class="entry-heading">QMK</span><span class="entry-references">, <a class="locator" href="#idx32" data-index-id="32" data-index-id-elided="32"></a>, <a class="locator" href="#idx51" data-index-id="51" data-index-id-elided="51"></a></span></dt>
-	<dt class="group-separator">&nbsp;</dt>
-	<dt><span class="entry-heading">safety</span><span class="entry-references">, <a class="locator" href="#idx56" data-index-id="56" data-index-id-elided="56"></a></span></dt>
-	<dd>
-		<dl>
-			<dt><span class="entry-heading">regarding macro content</span><span class="entry-references">, <a class="locator" href="#idx90" data-index-id="90" data-index-id-elided="90"></a></span></dt>
-		</dl>
-	</dd>
-	<dt><span class="entry-heading">Shift (key)</span><span class="entry-references">, <a class="locator" href="#idx5" data-index-id="5" data-index-id-elided="5"></a>. <em>See also</em> layers: Shift, concept of</span></dt>
-	<dt><span class="entry-heading">simultaneously</span><span class="entry-references">. <em>See</em> combo. <em>See also</em> chord</span></dt>
-	<dt class="group-separator">&nbsp;</dt>
-	<dt><span class="entry-heading">tap</span><span class="entry-references">, <a class="locator" href="#idx30" data-index-id="30" data-index-id-elided="30"></a>, <a class="locator" href="#idx31" data-index-id="31" data-index-id-elided="31"></a>, <a class="locator" href="#idx35" data-index-id="35" data-index-id-elided="35"></a>, <a class="locator" href="#idx37" data-index-id="37" data-index-id-elided="37"></a>, <a class="locator" href="#idx38" data-index-id="38" data-index-id-elided="38"></a>, <a class="locator" href="#idx39" data-index-id="39" data-index-id-elided="39"></a>, <a class="locator" href="#idx40" data-index-id="40" data-index-id-elided="40"></a>, <a class="locator" href="#idx41" data-index-id="41" data-index-id-elided="41"></a>, <a class="locator" href="#idx42" data-index-id="42" data-index-id-elided="42"></a>, <a class="locator" href="#idx43" data-index-id="43" data-index-id-elided="43"></a>, <a class="locator" href="#idx44" data-index-id="44" data-index-id-elided="44"></a>, <a class="locator" href="#idx45" data-index-id="45" data-index-id-elided="45"></a>, <a class="locator" href="#idx46" data-index-id="46" data-index-id-elided="46"></a>, <a class="locator" href="#idx48" data-index-id="48" data-index-id-elided="48"></a>, <a class="locator" href="#idx49" data-index-id="49" data-index-id-elided="49"></a>, <a class="locator" href="#idx54" data-index-id="54" data-index-id-elided="54"></a>, <a class="locator" href="#idx58" data-index-id="58" data-index-id-elided="58"></a>, <a class="locator" href="#idx59" data-index-id="59" data-index-id-elided="59"></a>, <a class="locator" href="#idx60" data-index-id="60" data-index-id-elided="60"></a>, <a class="locator" href="#idx61" data-index-id="61" data-index-id-elided="61"></a>, <a class="locator" href="#idx62" data-index-id="62" data-index-id-elided="62"></a>, <a class="locator" href="#idx64" data-index-id="64" data-index-id-elided="64"></a></span></dt>
-	<dt><span class="entry-heading">tap dance (QMK feature)</span><span class="entry-references">, <em><a class="locator" href="#idx34" data-index-id="34" data-index-id-elided="34"></a></em>, <a class="locator" href="#idx36" data-index-id="36" data-index-id-elided="36"></a>–<a class="locator" href="#idx63" data-index-id="63" data-index-id-elided="63"></a> _passim_</span></dt>
-	<dt><span class="entry-heading">toggle</span><span class="entry-references">, <em><a class="locator" href="#idx10" data-index-id="10" data-index-id-elided="10"></a></em></span></dt>
-	<dd>
-		<dl>
-			<dt><span class="entry-heading">layer</span><span class="entry-references">, <a class="locator" href="#idx1" data-index-id="1" data-index-id-elided="1"></a>, <a class="locator" href="#idx3" data-index-id="3" data-index-id-elided="3"></a>, <a class="locator" href="#idx6" data-index-id="6" data-index-id-elided="6"></a>, <a class="locator" href="#idx15" data-index-id="15" data-index-id-elided="15"></a>, <a class="locator" href="#idx16" data-index-id="16" data-index-id-elided="16"></a>, <a class="locator" href="#idx17" data-index-id="17" data-index-id-elided="17"></a>, <a class="locator" href="#idx18" data-index-id="18" data-index-id-elided="18"></a>, <a class="locator" href="#idx20" data-index-id="20" data-index-id-elided="20"></a>, <a class="locator" href="#idx21" data-index-id="21" data-index-id-elided="21"></a>, <a class="locator" href="#idx22" data-index-id="22" data-index-id-elided="22"></a>, <a class="locator" href="#idx23" data-index-id="23" data-index-id-elided="23"></a>, <a class="locator" href="#idx24" data-index-id="24" data-index-id-elided="24"></a>, <a class="locator" href="#idx25" data-index-id="25" data-index-id-elided="25"></a>, <a class="locator" href="#idx27" data-index-id="27" data-index-id-elided="27"></a>, <a class="locator" href="#idx28" data-index-id="28" data-index-id-elided="28"></a>, <a class="locator" href="#idx29" data-index-id="29" data-index-id-elided="29"></a>, <a class="locator" href="#idx47" data-index-id="47" data-index-id-elided="47"></a>, <a class="locator" href="#idx50" data-index-id="50" data-index-id-elided="50"></a>, <a class="locator" href="#idx72" data-index-id="72" data-index-id-elided="72"></a>, <a class="locator" href="#idx74" data-index-id="74" data-index-id-elided="74"></a>, <a class="locator" href="#idx75" data-index-id="75" data-index-id-elided="75"></a></span></dt>
+			<dt><span id="entry29" class="entry-heading">relevance of</span><span class="entry-references">, <a class="locator" href="#idx92" data-index-id="92" data-index-id-elided="92"></a></span></dt>
+			<dt><span class="entry-references"><em>See also</em> <a class="entry-link" href="#entry28">safety: regarding macro content</a></span></dt>
 		</dl>
 	</dd>
 	<dt class="group-separator">&nbsp;</dt>
-	<dt><span class="entry-heading">uppercase</span><span class="entry-references">, <a class="locator" href="#idx7" data-index-id="7" data-index-id-elided="7"></a></span></dt>
+	<dt><span id="entry2" class="entry-heading">overloading</span><span class="entry-references">, <a class="locator" href="#idx2" data-index-id="2" data-index-id-elided="2"></a>. <em>See also</em> tap dance</span></dt>
 	<dt class="group-separator">&nbsp;</dt>
-	<dt><span class="entry-heading">ZMK</span><span class="entry-references">, <a class="locator" href="#idx52" data-index-id="52" data-index-id-elided="52"></a></span></dt>
+	<dt><span id="entry15" class="entry-heading">QMK</span><span class="entry-references">, <a class="locator" href="#idx32" data-index-id="32" data-index-id-elided="32"></a>, <a class="locator" href="#idx51" data-index-id="51" data-index-id-elided="51"></a></span></dt>
+	<dt class="group-separator">&nbsp;</dt>
+	<dt><span id="entry19" class="entry-heading">safety</span><span class="entry-references">, <a class="locator" href="#idx56" data-index-id="56" data-index-id-elided="56"></a></span></dt>
+	<dd>
+		<dl>
+			<dt><span id="entry28" class="entry-heading">regarding macro content</span><span class="entry-references">, <a class="locator" href="#idx90" data-index-id="90" data-index-id-elided="90"></a></span></dt>
+		</dl>
+	</dd>
+	<dt><span id="entry4" class="entry-heading">Shift (key)</span><span class="entry-references">, <a class="locator" href="#idx5" data-index-id="5" data-index-id-elided="5"></a>. <em>See also</em> <a class="entry-link" href="#entry8">layers: Shift, concept of</a></span></dt>
+	<dt><span id="entry13" class="entry-heading">simultaneously</span><span class="entry-references">. <em>See</em> <a class="entry-link" href="#entry22">combo</a>. <em>See also</em> <a class="entry-link" href="#entry24">chord</a></span></dt>
+	<dt class="group-separator">&nbsp;</dt>
+	<dt><span id="entry14" class="entry-heading">tap</span><span class="entry-references">, <a class="locator" href="#idx30" data-index-id="30" data-index-id-elided="30"></a>, <a class="locator" href="#idx31" data-index-id="31" data-index-id-elided="31"></a>, <a class="locator" href="#idx35" data-index-id="35" data-index-id-elided="35"></a>, <a class="locator" href="#idx37" data-index-id="37" data-index-id-elided="37"></a>, <a class="locator" href="#idx38" data-index-id="38" data-index-id-elided="38"></a>, <a class="locator" href="#idx39" data-index-id="39" data-index-id-elided="39"></a>, <a class="locator" href="#idx40" data-index-id="40" data-index-id-elided="40"></a>, <a class="locator" href="#idx41" data-index-id="41" data-index-id-elided="41"></a>, <a class="locator" href="#idx42" data-index-id="42" data-index-id-elided="42"></a>, <a class="locator" href="#idx43" data-index-id="43" data-index-id-elided="43"></a>, <a class="locator" href="#idx44" data-index-id="44" data-index-id-elided="44"></a>, <a class="locator" href="#idx45" data-index-id="45" data-index-id-elided="45"></a>, <a class="locator" href="#idx46" data-index-id="46" data-index-id-elided="46"></a>, <a class="locator" href="#idx48" data-index-id="48" data-index-id-elided="48"></a>, <a class="locator" href="#idx49" data-index-id="49" data-index-id-elided="49"></a>, <a class="locator" href="#idx54" data-index-id="54" data-index-id-elided="54"></a>, <a class="locator" href="#idx58" data-index-id="58" data-index-id-elided="58"></a>, <a class="locator" href="#idx59" data-index-id="59" data-index-id-elided="59"></a>, <a class="locator" href="#idx60" data-index-id="60" data-index-id-elided="60"></a>, <a class="locator" href="#idx61" data-index-id="61" data-index-id-elided="61"></a>, <a class="locator" href="#idx62" data-index-id="62" data-index-id-elided="62"></a>, <a class="locator" href="#idx64" data-index-id="64" data-index-id-elided="64"></a></span></dt>
+	<dt><span id="entry17" class="entry-heading">tap dance (QMK feature)</span><span class="entry-references">, <em><a class="locator" href="#idx34" data-index-id="34" data-index-id-elided="34"></a></em>, <a class="locator" href="#idx36" data-index-id="36" data-index-id-elided="36"></a>–<a class="locator" href="#idx63" data-index-id="63" data-index-id-elided="63"></a> _passim_</span></dt>
+	<dt><span id="entry0" class="entry-heading">toggle</span><span class="entry-references">, <em><a class="locator" href="#idx10" data-index-id="10" data-index-id-elided="10"></a></em></span></dt>
+	<dd>
+		<dl>
+			<dt><span id="entry1" class="entry-heading">layer</span><span class="entry-references">, <a class="locator" href="#idx1" data-index-id="1" data-index-id-elided="1"></a>, <a class="locator" href="#idx3" data-index-id="3" data-index-id-elided="3"></a>, <a class="locator" href="#idx6" data-index-id="6" data-index-id-elided="6"></a>, <a class="locator" href="#idx15" data-index-id="15" data-index-id-elided="15"></a>, <a class="locator" href="#idx16" data-index-id="16" data-index-id-elided="16"></a>, <a class="locator" href="#idx17" data-index-id="17" data-index-id-elided="17"></a>, <a class="locator" href="#idx18" data-index-id="18" data-index-id-elided="18"></a>, <a class="locator" href="#idx20" data-index-id="20" data-index-id-elided="20"></a>, <a class="locator" href="#idx21" data-index-id="21" data-index-id-elided="21"></a>, <a class="locator" href="#idx22" data-index-id="22" data-index-id-elided="22"></a>, <a class="locator" href="#idx23" data-index-id="23" data-index-id-elided="23"></a>, <a class="locator" href="#idx24" data-index-id="24" data-index-id-elided="24"></a>, <a class="locator" href="#idx25" data-index-id="25" data-index-id-elided="25"></a>, <a class="locator" href="#idx27" data-index-id="27" data-index-id-elided="27"></a>, <a class="locator" href="#idx28" data-index-id="28" data-index-id-elided="28"></a>, <a class="locator" href="#idx29" data-index-id="29" data-index-id-elided="29"></a>, <a class="locator" href="#idx47" data-index-id="47" data-index-id-elided="47"></a>, <a class="locator" href="#idx50" data-index-id="50" data-index-id-elided="50"></a>, <a class="locator" href="#idx72" data-index-id="72" data-index-id-elided="72"></a>, <a class="locator" href="#idx74" data-index-id="74" data-index-id-elided="74"></a>, <a class="locator" href="#idx75" data-index-id="75" data-index-id-elided="75"></a></span></dt>
+		</dl>
+	</dd>
+	<dt class="group-separator">&nbsp;</dt>
+	<dt><span id="entry5" class="entry-heading">uppercase</span><span class="entry-references">, <a class="locator" href="#idx7" data-index-id="7" data-index-id-elided="7"></a></span></dt>
+	<dt class="group-separator">&nbsp;</dt>
+	<dt><span id="entry18" class="entry-heading">ZMK</span><span class="entry-references">, <a class="locator" href="#idx52" data-index-id="52" data-index-id-elided="52"></a></span></dt>
 </dl>

@@ -788,6 +788,20 @@ class TextIndex:
 		return entry, (entry and not created)
 	
 	
+	def existing_entry_at_path(self, path):
+		if path:
+			path_len = len(path)
+			if path_len > 0:
+				label = path[-1]
+				ancestors = []
+				if path_len > 1:
+					ancestors = path[:-1]
+				entry, created = self.entry_at_path(label, ancestors, False)
+				return entry
+		
+		return None
+	
+	
 	def process_wildcards(self, label, text, force_label_only=False):
 		if label:
 			search_wildcard_pattern = r"\*\^(\-?)"
@@ -966,7 +980,7 @@ class TextIndex:
 		# Create our assembled entry's HTML.
 		depth = entry.depth() + 1
 		indent = max((2 * depth - 1), 1) * '\t'
-		html = f'<span class="entry-heading">{emph(entry.label) if entry.label else ""}</span><span class="entry-references">{refs_html}</span>'
+		html = f'<span id="{TextIndexEntry._entry_id_prefix}{entry.entry_id}" class="entry-heading">{emph(entry.label) if entry.label else ""}</span><span class="entry-references">{refs_html}</span>'
 		if not running_in:
 			html = f"{indent}<dt>{html}</dt>\n"
 		
@@ -1112,8 +1126,14 @@ class TextIndexEntry:
 	end_suffix = "end-suffix"
 	locator_emphasis = "locator-emphasis"
 	
+	_entry_link_class = "entry-link"
+	_entry_id_prefix = "entry"
+	_next_id = 0
 	
 	def __init__(self, label=None, parent=None):
+		self.entry_id = TextIndexEntry._next_id
+		TextIndexEntry._next_id += 1
+		
 		self.label = label
 		self.parent = parent
 		self.entries = [] # children
@@ -1211,8 +1231,10 @@ class TextIndexEntry:
 		return components
 	
 	
-	def joined_path(self):
-		return self.textindex._path_delimiter.join(f'"{elem}"' for elem in self.path_list())
+	def joined_path(self, path=None):
+		if path == None:
+			path = self.path_list()
+		return self.textindex._path_delimiter.join(f'"{elem}"' for elem in path)
 	
 	
 	def render_references(self):
@@ -1246,6 +1268,10 @@ class TextIndexEntry:
 			if self.textindex.sort_emph_first and not self.textindex.section_mode:
 				the_refs = sorted(the_refs, key=lambda d: d[TextIndexEntry.locator_emphasis], reverse=True)
 			
+			ref_limit = 10
+			if len(the_refs) >= ref_limit:
+				self.textindex.inform(f"Entry {self.joined_path()} has {len(the_refs)} locators. Consider reorganising or being more selective.", severity="warning")
+			
 			loc_class = "locator"
 			for i in range(len(the_refs)):
 				ref = the_refs[i]
@@ -1273,8 +1299,8 @@ class TextIndexEntry:
 		return None
 	
 	
-	def render_cross_references(self):
-		# See-type cross-references.
+	def render_xrefs_of_type(self, ref_type=TextIndex._see):
+		# Render cross-references.
 		refs = []
 		
 		if len(self.cross_references) > 0:
@@ -1282,29 +1308,28 @@ class TextIndexEntry:
 			
 			for i in range(len(self.cross_references)):
 				ref = self.cross_references[i]
-				if ref[TextIndex._ref_type] == TextIndex._see:
-					refs.append(f'{TextIndex._path_separator.join(ref[TextIndex._path])}')
+				if ref[TextIndex._ref_type] == ref_type:
+					ref_path = ref[TextIndex._path]
+					ref_entry = self.textindex.existing_entry_at_path(ref_path)
+					refs.append(f'{TextIndex._path_separator.join(ref_path)}')
+					if ref_entry:
+						refs[-1] = f'<a class="{TextIndexEntry._entry_link_class}" href="#{TextIndexEntry._entry_id_prefix}{ref_entry.entry_id}">{refs[-1]}</a>'
+					else:
+						self.textindex.inform(f"Cross-referenced entry {self.joined_path(ref_path)} doesn't exist (in entry {self.joined_path()})", severity="warning")
 			if len(refs) > 0:
 				return f"{TextIndex._refs_delimiter} ".join(refs)
 			
 		return None
+	
+	
+	def render_cross_references(self):
+		# See-type cross-references.
+		return self.render_xrefs_of_type(TextIndex._see)
 	
 	
 	def render_also_references(self):
 		# Also-type cross-references.
-		refs = []
-		
-		if len(self.cross_references) > 0:
-			self.sort_cross_refs()
-			
-			for i in range(len(self.cross_references)):
-				ref = self.cross_references[i]
-				if ref[TextIndex._ref_type] == TextIndex._also:
-					refs.append(f'{TextIndex._path_separator.join(ref[TextIndex._path])}')
-			if len(refs) > 0:
-				return f"{TextIndex._refs_delimiter} ".join(refs)
-			
-		return None
+		return self.render_xrefs_of_type(TextIndex._also)
 	
 	
 	def sort_cross_refs(self):
