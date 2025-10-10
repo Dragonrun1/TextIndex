@@ -26,3 +26,78 @@ dev = [
     "ruff>=0.14.0",
     "xdoctest>=1.3.0",
 ]
+
+[tool.pytest.ini_options]
+addopts = [
+    "--cov",
+    "--cov-branch",
+    "--cov-report=term",
+    "--cov-report=xml:coverage.xml",
+    "--doctest-modules",
+    "--xdoctest",
+    "-vvv"
+]
+testpaths = [
+    "src/textindex/",
+    "tests/"
+]
+
+[tool.coverage.run]
+omit = [
+    ".venv/*",
+    "example/*",
+    "tests/*",
+]
+
+[tool.pylint]
+allow-wildcard-with-all = true
+good-names = ["_", "__", "db", "e", "ex", "f", "i", "j", "k", "s", "ui"]
+ignore = ["_dev", "example"]
+include-naming-hint = true
+jobs = 0
+max-args = 6
+output-format = "github"
+overgeneral-exceptions = ["builtins.Exception"]
+
+[tool.pylint.main]
+load-plugins = [
+    "pylint_per_file_ignores"
+]
+
+[tool.pylint."messages control"]
+per-file-ignores = [
+    "tests/*:missing-module-docstring,missing-function-docstring"
+]
+
+[tool.ruff]
+fix = true
+line-length = 80
+output-format = "grouped"
+required-version = ">=0.13.0,<1.0"
+#src = ["src/*", "tests/*"]
+src = ["src/*"]
+exclude = [
+    "demo/*",
+    "demo-nonfiction/*",
+    "publish/*",
+    "src/pandoc_publish/FigureMark/*",
+    "src/pandoc_publish/TextIndex/*",
+    "tests/*"
+]
+
+[tool.ruff.format]
+docstring-code-format = true
+exclude = ["*.pyi"]
+
+[tool.ruff.lint]
+extend-select = ["D", "E", "I", "N", "R", "W"]
+ignore = ["D105", "D205"]
+
+[tool.ruff.lint.pep8-naming]
+extend-ignore-names = ["Err", "NONE", "Ok", "Some"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["D103"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
