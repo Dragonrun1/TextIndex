@@ -39,7 +39,7 @@ Usage:
 """
 
 import re
-from typing import LiteralString, Self
+from typing import List, LiteralString, Self, Tuple
 
 
 def emphasis(text: str, remove: bool = False) -> str:
@@ -1476,13 +1476,25 @@ class TextIndex:
         mess += f"'{self._alias_prefix}{name}' as: {self.aliases[name]}"
         self.inform(mess)
 
-    def entry_at_path(self, label, path_list, create=True):
-        """ """
-        # Returns entry named label at path path_list, and whether it already
-        # existed or not.
-        # If entry doesn't exist and create is True, creates it; else returns
-        # None.
+    def entry_at_path(
+        self, label: str, path_list: List[str], create: bool = True
+    ) -> Tuple[TextIndexEntry, bool]:
+        """Returns entry named label at path path_list, and whether it already
+        existed or not.
 
+        Args:
+            label (str): The name of the entry to retrieve.
+            path_list (List[str]):
+                A list of labels representing the path to the desired entry.
+            create (bool, optional):
+                If True, creates the entry if it does not exist.
+                Defaults to True.
+
+        Returns:
+            Tuple[TextIndexEntry, bool]:
+                A tuple containing the entry and a boolean indicating whether it
+                already existed.
+        """
         created = False
         entry = None
         entries = self.entries
@@ -1502,9 +1514,10 @@ class TextIndex:
                     entry = None
                     self.inform(f"\tFailed to find '{label}'!")
                     break
-                self.inform(
-                    f"\tMaking new entry '{component}' ({"within '" + entry.label + "'" if entry else 'at root'})"
-                )
+                mess = f"\tMaking new entry '{component}' (within '"
+                mess += entry.label if entry else "at root"
+
+                self.inform(mess + "')")
                 new_entry = TextIndexEntry(component, entry)
                 new_entry.textindex = self
                 entry_depth = new_entry.depth()
@@ -1520,104 +1533,140 @@ class TextIndex:
         return entry, (entry and not created)
 
     def entry_html(self, entry: TextIndexEntry) -> str:
-        # Cross-refs (non-also), then ordered references, then parent's
-        # also-refs.
+        """Generates HTML representation of a text index entry.
+
+        Args:
+            entry (TextIndexEntry): The entry to convert into HTML.
+
+        Returns:
+            str: HTML string representing the entry.
+        """
+        running_in = entry.parent and entry.parent.run_in_children()
+        run_in_children = entry.run_in_children()
+        depth = entry.depth() + 1
+        indent = max((2 * depth - 1), 1) * "\t"
+
         refs_html = ""
         refs_output = False
-        running_in = entry.parent and entry.parent.run_in_children()
 
-        # Entry's see-references.
-        has_xrefs = False
-        xrefs_html = entry.render_cross_references()
-        if xrefs_html is not None:
-            if running_in:
-                refs_html += (
-                    f" (<em>{self.see_label.lower()}</em> {xrefs_html})"
-                )
-            else:
-                refs_html += (
-                    f"{TextIndex._category_separator}<em>"
-                    f"{self.see_label.capitalize()}</em> {xrefs_html}"
-                )
-            refs_output = True
-            has_xrefs = True
+        # --- 1. Cross-references ("see") ---
+        xrefs_html, has_xrefs = self._build_cross_ref_html(entry, running_in)
+        refs_html += xrefs_html
+        refs_output |= has_xrefs
 
-        # Entry's references (locators).
-        has_refs = False
-        entry_refs_html = entry.render_references()
-        if entry_refs_html is not None:
-            refs_html += (
-                TextIndex._category_separator
-                if refs_output
-                else TextIndex._field_separator
-            )
-            refs_html += entry_refs_html
-            refs_output = True
-            has_refs = True
+        # --- 2. Regular references (locators) ---
+        entry_refs_html, has_refs = self._build_locator_html(entry, refs_output)
+        refs_html += entry_refs_html
+        refs_output |= has_refs
 
-        run_in_children = entry.run_in_children()
+        # --- 3. Children (run-in mode) ---
         if run_in_children:
-            delim = self._category_separator  # if it has_xrefs but not has_refs
-            if has_refs:
-                delim = self._list_separator
-            elif not has_xrefs:
-                delim = self._path_separator
-
             if entry.has_children():
-                refs_html += delim
+                if has_refs:
+                    delim = self._list_separator
+                elif not has_xrefs:
+                    delim = self._path_separator
+                else:
+                    delim = self._category_separator
+
+                refs_html += delim + self._join_children(entry)
             elif entry.has_also_refs():
                 refs_html += self._category_separator
 
-            if entry.has_children():
-                child_entries = []
-                for child in self.sort_entries(entry.entries):
-                    child_entries.append(self.entry_html(child))
-                refs_html += self._list_separator.join(child_entries)
-
-        # Check whether we lack children and thus potentially need to inline our
-        # own see-also references.
-        # This provides run-in style for such references.
+        # --- 4. Inline also-references when no children ---
         if (
             not entry.has_children() or run_in_children
         ) and entry.has_also_refs():
-            also_refs_html = entry.render_also_references()
-            if also_refs_html is not None:
-                if running_in:
-                    refs_html += f" (<em>{self.see_also_label.lower()}</em>"
-                else:
-                    refs_html += (
-                        f"{TextIndex._category_separator}"
-                        f"<em>{self.see_also_label.capitalize()}</em>"
-                    )
-                refs_html = f" {also_refs_html}"
-                refs_output = True
+            refs_html += self._build_also_refs_html(entry, running_in)
+            refs_output = True
 
-        # Create our assembled entry's HTML.
-        depth = entry.depth() + 1
-        indent = max((2 * depth - 1), 1) * "\t"
-        html = f'<span id="{TextIndexEntry._entry_id_prefix}{entry.entry_id}" class="entry-heading">{emphasis(entry.label) if entry.label else ""}</span><span class="entry-references">{refs_html}</span>'
-        if not running_in:
-            html = f"{indent}<dt>{html}</dt>\n"
+        # --- 5. Assemble the entry HTML itself ---
+        entry_label_html = f"{emphasis(entry.label)}" if entry.label else ""
+        entry_head_html = (
+            f'<span id="{TextIndexEntry._entry_id_prefix}{entry.entry_id}" class="entry-heading">'
+            f"{entry_label_html}</span>"
+            f'<span class="entry-references">{refs_html}</span>'
+        )
+        html = (
+            f"{indent}<dt>{entry_head_html}</dt>\n"
+            if not running_in
+            else entry_head_html
+        )
 
-        # Handle subordinate indented elements.
-        if not run_in_children:
-            # Children, if indented.
-            if len(entry.entries) > 0:
-                html += f"{indent}<dd>\n{indent}\t<dl>\n"
-                for child in self.sort_entries(entry.entries):
-                    html += self.entry_html(child)
-                html += f"{indent}\t</dl>\n{indent}</dd>\n"
+        # --- 6. Non-run-in children (indented structure) ---
+        if not run_in_children and entry.entries:
+            html += f"{indent}<dd>\n{indent}\t<dl>\n"
+            html += self._join_children(entry)
+            html += f"{indent}\t</dl>\n{indent}</dd>\n"
 
-        # Parent's see-also cross-references.
+        # --- 7. Parent's 'see also' references ---
         if entry.parent and entry.parent.has_also_refs() and not running_in:
             also_refs_html = entry.parent.render_also_references()
-            if also_refs_html is not None:
-                html += f'{indent}<dt><span class="entry-references">'
-                html += f"<em>{self.see_also_label.capitalize()}</em> {also_refs_html}"
-                html += "</span></dt>\n"
-                refs_output = True
+            if also_refs_html:
+                html += (
+                    f'{indent}<dt><span class="entry-references">'
+                    f"<em>{self.see_also_label.capitalize()}</em> {also_refs_html}</span></dt>\n"
+                )
 
         return html
+
+    def _join_children(self, entry: TextIndexEntry) -> str:
+        """Helper to generate HTML for sorted child entries."""
+        return self._list_separator.join(
+            self.entry_html(child) for child in self.sort_entries(entry.entries)
+        )
+
+    def _build_cross_ref_html(
+        self, entry: TextIndexEntry, running_in: bool
+    ) -> tuple[str, bool]:
+        """Private helper: return HTML for 'see' cross-references."""
+        xrefs_html = entry.render_cross_references()
+        if not xrefs_html:
+            return "", False
+        label = (
+            self.see_label.lower()
+            if running_in
+            else self.see_label.capitalize()
+        )
+        prefix = (
+            f" (<em>{label}</em> "
+            if running_in
+            else f"{TextIndex._category_separator}<em>{label}</em> "
+        )
+        return f"{prefix}{xrefs_html}", True
+
+    def _build_locator_html(
+        self, entry: TextIndexEntry, has_prev: bool
+    ) -> tuple[str, bool]:
+        """Private helper: return HTML for entry locators (page/section references)."""
+        entry_refs_html = entry.render_references()
+        if not entry_refs_html:
+            return "", False
+        prefix = (
+            TextIndex._category_separator
+            if has_prev
+            else TextIndex._field_separator
+        )
+        return f"{prefix}{entry_refs_html}", True
+
+    def _build_also_refs_html(
+        self, entry: TextIndexEntry, running_in: bool
+    ) -> str:
+        """Private helper: return HTML for 'see also' references."""
+        also_refs_html = entry.render_also_references()
+        if not also_refs_html:
+            return ""
+        label = (
+            self.see_also_label.lower()
+            if running_in
+            else self.see_also_label.capitalize()
+        )
+        prefix = (
+            f" (<em>{label}</em> "
+            if running_in
+            else f"{TextIndex._category_separator}<em>{label}</em> "
+        )
+        return f"{prefix}{also_refs_html}"
 
     def existing_entry_at_path(self, path):
         if path:
