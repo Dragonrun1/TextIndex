@@ -40,7 +40,7 @@ Usage:
 
 import re
 from dataclasses import dataclass
-from typing import List, LiteralString, Self, Tuple
+from typing import List, Literal, LiteralString, Self, Tuple
 
 
 def emphasis(text: str, remove: bool = False) -> str:
@@ -103,6 +103,7 @@ class IndexConfig:
     field_separator: str = ", "
     list_separator: str = "; "
     path_separator: str = ": "
+    range_separator = "–"
 
     # --- Structural behavior ---
     run_in_children: bool = True
@@ -110,7 +111,7 @@ class IndexConfig:
     sort_emphasis_first: bool = False
 
     # --- Output format ---
-    output_format: str = "html"  # or "markdown", "text"
+    output_format: str = Literal["html", "markdown", "text"]
 
     # --- Logging and diagnostics ---
     verbose: bool = False
@@ -480,7 +481,7 @@ class TextIndexEntry:
                         if TextIndexEntry.section_end in ref
                         else ""
                     )
-                    locator_html += TextIndex._range_separator
+                    locator_html += self.textindex.config.range_separator
                     locator_html += f'<a class="{loc_class}" href="#{self.textindex.index_id_prefix}{ref[TextIndexEntry.end_id]}" data-index-id="{ref[TextIndexEntry.end_id]}" data-index-id-elided="{elided_end}"{sec_end}></a>'
                 suffix_applied = False
                 if TextIndexEntry.suffix in ref and ref[TextIndexEntry.suffix]:
@@ -497,7 +498,8 @@ class TextIndexEntry:
                 refs.append(locator_html)
 
             if len(refs) > 0:
-                return self.textindex.field_separator.join(refs)
+                sep = self.textindex.config.field_separator
+                return sep.join(refs)
 
         return None
 
@@ -537,7 +539,7 @@ class TextIndexEntry:
         ]
         """
         # See-type cross-references.
-        return self.render_xrefs_of_type(TextIndex.see)
+        return self.render_xrefs_of_type(self.textindex.config.see_label)
 
     def render_xrefs_of_type(self, ref_type=TextIndex.see):
         """ """
@@ -563,7 +565,8 @@ class TextIndexEntry:
                             severity="warning",
                         )
             if len(refs) > 0:
-                return f"{TextIndex._refs_delimiter} ".join(refs)
+                sep = self.textindex.config.list_separator + " "
+                return sep.join(refs)
 
         return None
 
@@ -732,7 +735,6 @@ class TextIndex:
     _headings = "headings"
     _prefix = "prefix"
     _run_in = "run-in"
-    _see = "see"
 
     # Keys: cross-references
     _path = "path"
@@ -786,9 +788,6 @@ class TextIndex:
         self.original_document = document_text
         self.intermediate_document = None
         self._index_id_prefix = TextIndex._index_id_prefix
-        self._group_headings = TextIndex._group_headings
-        self._should_run_in = TextIndex._should_run_in
-        self._sort_emphasis_first = TextIndex._sort_emphasis_first
         self._indexed_document = None
         self.verbose = False
         self.aliases = {}
@@ -1047,7 +1046,10 @@ class TextIndex:
 
         if label_lower.startswith("see "):
             entry.cross_references.append(
-                {"type": "see", "target": entry.label[4:].strip()}
+                {
+                    "type": self.config.see_label,
+                    "target": entry.label[4:].strip(),
+                }
             )
         elif label_lower.startswith("see also "):
             entry.cross_references.append(
@@ -1246,7 +1248,7 @@ class TextIndex:
             if also_refs_html:
                 html += (
                     f'{indent}<dt><span class="entry-references">'
-                    f"<em>{self.see_also_label.capitalize()}</em> {also_refs_html}</span></dt>\n"
+                    f"<em>{self.config.see_also_label.capitalize()}</em> {also_refs_html}</span></dt>\n"
                 )
 
         return html
@@ -1265,9 +1267,9 @@ class TextIndex:
         if not xrefs_html:
             return "", False
         label = (
-            self.see_label.lower()
+            self.config.see_label.lower()
             if running_in
-            else self.see_label.capitalize()
+            else self.config.see_label.capitalize()
         )
         prefix = (
             f" (<em>{label}</em> "
@@ -1279,7 +1281,9 @@ class TextIndex:
     def _build_locator_html(
         self, entry: TextIndexEntry, has_prev: bool
     ) -> tuple[str, bool]:
-        """Private helper: return HTML for entry locators (page/section references)."""
+        """Private helper: return HTML for entry locators
+        (page/section references).
+        """
         entry_refs_html = entry.render_references()
         if not entry_refs_html:
             return "", False
@@ -1355,9 +1359,7 @@ class TextIndex:
 
     @property
     def group_headings_enabled(self):
-        if isinstance(self._group_headings, bool):
-            return self._group_headings
-        return self._group_headings.lower() == "true"
+        return self.config.group_headings
 
     @group_headings_enabled.setter
     def group_headings_enabled(self, val) -> None:
@@ -1365,7 +1367,7 @@ class TextIndex:
             val = val.lower() == "true"
         elif not isinstance(val, bool):
             val = False
-        self._group_headings = val
+        self.config.group_headings = val
         self._indexed_document = None
 
     def indexed_document(self):
@@ -1774,48 +1776,10 @@ class TextIndex:
         return None
 
     @property
-    def see(self) -> str:
-        return self._see
-
-    @see.setter
-    def see(self, val) -> None:
-        self._see = val
-
-    @property
-    def see_also_label(self) -> str:
-        """Additional cross-reference labels.
-
-        Returns:
-            str: Cross-reference label
-        """
-        return self.config.see_also_label
-        # return self._see_also_label
-
-    @see_also_label.setter
-    def see_also_label(self, val) -> None:
-        self.config.see_also_label = val
-        # self._see_also_label = val
-        self._indexed_document = None
-
-    @property
-    def see_label(self) -> str:
-        """Cross reference labels.
-
-        Returns:
-            str: Cross-reference label
-        """
-        return self.config.see_label
-
-    @see_label.setter
-    def see_label(self, val) -> None:
-        self._see_label = val
-        self._indexed_document = None
-
-    @property
     def should_run_in(self):
-        if isinstance(self._should_run_in, bool):
-            return self._should_run_in
-        return self._should_run_in.lower() == "true"
+        if isinstance(self.textindex.config.run_in_children, bool):
+            return self.textindex.config.run_in_children
+        return self.textindex.config.run_in_children.lower() == "true"
 
     @should_run_in.setter
     def should_run_in(self, val) -> None:
@@ -1823,14 +1787,12 @@ class TextIndex:
             val = val.lower() == "true"
         elif not isinstance(val, bool):
             val = True
-        self._should_run_in = val
+        self.textindex.config.run_in_children = val
         self._indexed_document = None
 
     @property
     def sort_emphasis_first(self) -> bool:
-        if isinstance(self._sort_emphasis_first, bool):
-            return self._sort_emphasis_first
-        return self._sort_emphasis_first.lower() == "true"
+        return self.config.sort_emphasis_first
 
     @sort_emphasis_first.setter
     def sort_emphasis_first(self, val) -> None:
@@ -1838,7 +1800,7 @@ class TextIndex:
             val = val.lower() == "true"
         elif not isinstance(val, bool):
             val = True
-        self._sort_emphasis_first = val
+        self.config.sort_emphasis_first = val
         self._indexed_document = None
 
     def sort_entries(self, entries):
