@@ -39,6 +39,7 @@ Usage:
 """
 
 import re
+from dataclasses import dataclass
 from typing import List, LiteralString, Self, Tuple
 
 
@@ -465,7 +466,7 @@ class TextIndexEntry:
                 refs.append(locator_html)
 
             if len(refs) > 0:
-                return TextIndex._field_separator.join(refs)
+                return IndexConfig.field_separator.join(refs)
 
         return None
 
@@ -520,7 +521,7 @@ class TextIndexEntry:
                 if ref[TextIndex._ref_type] == ref_type:
                     ref_path = ref[TextIndex._path]
                     ref_entry = self.textindex.existing_entry_at_path(ref_path)
-                    refs.append(f"{TextIndex._path_separator.join(ref_path)}")
+                    refs.append(f"{IndexConfig.path_separator.join(ref_path)}")
                     if ref_entry:
                         refs[-1] = (
                             f'<a class="{TextIndexEntry._entry_link_class}" href="#{TextIndexEntry._entry_id_prefix}{ref_entry.entry_id}">{refs[-1]}</a>'
@@ -681,6 +682,37 @@ def string_to_slug(text) -> str:
     return text.lower()
 
 
+@dataclass
+class IndexConfig:
+    """Configuration options for text index generation and rendering."""
+
+    # --- Labels ---
+    see_label: str = "see"
+    see_also_label: str = "see also"
+
+    # --- Rendering behavior ---
+    category_separator: str = ". "
+    field_separator: str = ", "
+    list_separator: str = "; "
+    path_separator: str = ": "
+
+    # --- Structural behavior ---
+    run_in_children: bool = True
+    group_headings: bool = True
+    sort_emphasis_first: bool = False
+
+    # --- Output format ---
+    output_format: str = "html"  # or "markdown", "text"
+
+    # --- Logging and diagnostics ---
+    verbose: bool = False
+    show_warnings: bool = True
+
+    # --- Advanced options ---
+    section_mode: bool = False
+    case_sensitive_sort: bool = False
+
+
 class TextIndex:
     """TextIndex is a class designed to index and process document text.
     It facilitates the creation of index entries based on specified patterns,
@@ -691,8 +723,6 @@ class TextIndex:
     # Internal use below.
     _group_headings = False
     _index_id_prefix = "idx"
-    _see_also_label = "see also"
-    _see_label = "see"
     _should_run_in = True
     _sort_emphasis_first = False
 
@@ -719,12 +749,8 @@ class TextIndex:
     _refs_delimiter = ";"
 
     # Output
-    _category_separator = ". "
     _disable = "-"
     _enable = "+"
-    _field_separator = ", "
-    _list_separator = "; "
-    _path_separator = ": "
     _range_separator = "–"  # en-dash
     _shared_class = "textindex"
 
@@ -745,17 +771,20 @@ class TextIndex:
         r"^(#{1,6})\s*([^\{]+?)\s*?(?:\{([^\}]*?)\})?\s*$"
     )
 
-    def __init__(self, document_text: str | None = None) -> None:
+    def __init__(
+        self, document_text: str, config: IndexConfig | None = None
+    ) -> None:
         """Initialize the TextIndex.
 
         Args:
-            document_text (str): document text.
+            document_text (str): document text
+            config (IndexConfig): configuration options
         """
+        self.config = config or IndexConfig()
+        self.entries: list[TextIndexEntry] = []
+        self._entry_cache: dict[tuple[str, str | None], TextIndexEntry] = {}
         self.original_document = document_text
         self.intermediate_document = None
-        self.entries = []
-        self._see_label = TextIndex._see_label
-        self._see_also_label = TextIndex._see_also_label
         self._index_id_prefix = TextIndex._index_id_prefix
         self._group_headings = TextIndex._group_headings
         self._should_run_in = TextIndex._should_run_in
@@ -919,532 +948,142 @@ class TextIndex:
 
         self.intermediate_document = text
 
-    def create_index(self) -> None:
-        """ """
-        entry_number = 0
-        if self.original_document:
-            indexed_doc = f"{self.intermediate_document if self.intermediate_document else self.original_document}"
-            self.aliases = {}
+    def create_index(self, text: str) -> str:
+        """Main entry point to build and insert the text index into document.
 
-            # Determine mode.
-            idx_placeholders = re.finditer(
-                TextIndex._index_placeholder_pattern, indexed_doc
+        Steps:
+            1. Normalize text and prepare for indexing.
+            2. Extract index directives.
+            3. Parse and process each directive into the index tree.
+            4. Render the final index as HTML.
+            5. Insert the generated index back into the text.
+
+        Args:
+            text(str): Text to build and insert index into.
+
+        Returns:
+            str: New text with index
+        """
+        self.inform("Starting index creation...", force=True)
+
+        doc = self._prepare_document(text)
+        directives = self._find_index_directives(doc)
+
+        self.inform(f"Found {len(directives)} index directives", "info")
+
+        for directive in directives:
+            self._process_directive(directive)
+
+        index_html = self._render_final_index()
+        output_text = self._insert_index_placeholder(doc, index_html)
+
+        self.inform("Index creation complete.", force=True)
+        return output_text
+
+    # ---------------------------------------------------------------------------
+    # Internal helper methods
+    # ---------------------------------------------------------------------------
+
+    def _prepare_document(self, text: str) -> str:
+        """Normalize and preprocess the document before indexing."""
+        text = text.replace("\r\n", "\n").replace("\r", "\n")
+
+        if getattr(self, "section_mode", False):
+            self.inform(
+                "Section mode active: splitting document sections", "info"
             )
-            for placeholder in idx_placeholders:
-                if re.search(r"\bsection\b", placeholder.group(0)):
-                    self.section_mode = True
-                    self.inform(
-                        "Section mode enabled for all index directives in document.",
-                        force=True,
-                    )
-                    break
+            text = self._split_into_sections(text)
 
-            # Find all directives.
-            offset = 0  # accounting for replacements
-            last_mark_end = 0
-            enabled = True
-            section_number = None
-            section_stack = []
-            prev_heading_level = 1
-            directive_matches = re.finditer(
-                TextIndex._index_directive_pattern, indexed_doc
-            )
-            for directive in directive_matches:
-                if self.section_mode:
-                    # Handle intervening headings.
-                    headings = re.finditer(
-                        TextIndex._markdown_heading_pattern,
-                        indexed_doc[last_mark_end : directive.start() + offset],
-                        re.MULTILINE,
-                    )
-                    if headings:
-                        num_heads = 0
-                        delta = 0
-                        for head_match in headings:
-                            hashes, title, attr_str = (
-                                head_match.group(1),
-                                head_match.group(2),
-                                head_match.group(3),
-                            )
-                            head_level = len(hashes)
-                            title = title.strip()
+        return text
 
-                            increment_section = True
-                            if attr_str and re.search(
-                                r"(?i)\.(no-?toc|unlisted)\b", attr_str
-                            ):
-                                increment_section = False
+    def _find_index_directives(self, text: str) -> list[str]:
+        """Extract all index directives from text."""
+        patterns = [
+            r"{\^index:([^}]+)}",  # Markdown-style
+            r"@index\{([^}]+)\}",  # reST-style
+            r"\\index\{([^}]+)\}",  # LaTeX-style
+        ]
+        matches: list[str] = []
+        for pattern in patterns:
+            matches.extend(re.findall(pattern, text))
+        return matches
 
-                            if len(section_stack) == 0:
-                                # Treat the first heading as root level, even if
-                                # not h1.
-                                prev_heading_level = head_level
-                                section_stack.append(0)
-                            if increment_section:
-                                if head_level == prev_heading_level:
-                                    section_stack[-1] += 1
-                                elif head_level > prev_heading_level:
-                                    for x in range(
-                                        prev_heading_level, head_level - 1
-                                    ):
-                                        section_stack.append(0)
-                                    section_stack.append(1)
-                                else:
-                                    for x in range(
-                                        head_level, prev_heading_level
-                                    ):
-                                        section_stack.pop()
-                                    section_stack[-1] += 1
-                                prev_heading_level = head_level
-
-                            # Format section number for use as an attribute in
-                            # headings and index locators.
-                            section_number = ".".join(
-                                str(i) for i in section_stack
-                            )
-
-                            # Apply section number to its heading, by rendering
-                            # the Markdown heading as HTML, preserving braced
-                            # attributes.
-                            markdown_heading = head_match.group(0)
-                            html_heading = (
-                                self.render_markdown_heading(
-                                    markdown_heading,
-                                    f'.heading-section data-section="{section_number}"'
-                                    if increment_section
-                                    else None,
-                                )
-                                + "\n"
-                            )
-                            # print(f"Encountered heading: {markdown_heading}\n
-                            # \tSection is: {section_number}\n\tWould rewrite
-                            # as: {html_heading}")
-
-                            # Perform heading replacement in the document.
-                            start = last_mark_end + head_match.start() + delta
-                            end = last_mark_end + head_match.end() + delta
-                            # segment = indexed_doc[start:end]
-                            indexed_doc = (
-                                indexed_doc[:start]
-                                + html_heading
-                                + indexed_doc[end:]
-                            )
-                            delta += len(html_heading) - len(markdown_heading)
-                            num_heads += 1
-
-                        offset += delta
-                        last_mark_end = directive.start() + offset
-
-                # Parse and encapsulate each entry, either as an object or a
-                # range-end.
-                self.inform(f"Directive found: {directive.group(0)}")
-
-                params = directive.group(3).strip()
-                closing = False
-                emphasis = False
-                sort_key = None
-                suffix = None
-                cross_references = []
-
-                # Determine type of directive.
-                toggling_directive = (
-                    params == TextIndex._enable or params == TextIndex._disable
-                )
-                status_toggled = False
-                if params.endswith(self._end_marker):
-                    closing = True
-                    params = params[: -len(self._end_marker)]
-                    self.inform("\tClosing mark: /")
-                elif params.endswith(self._emphasis_marker):
-                    emphasis = True
-                    params = params[: -len(self._emphasis_marker)]
-                    self.inform("\tLocator Emphasis: !")
-                elif params == TextIndex._enable and not enabled:
-                    enabled = True
-                    self.inform(
-                        "============ Processing enabled.  ============"
-                    )
-                    status_toggled = True
-                elif params == TextIndex._disable and enabled:
-                    enabled = False
-                    self.inform(
-                        "============ Processing disabled. ============"
-                    )
-                    status_toggled = True
-
-                if toggling_directive and (enabled or status_toggled):
-                    # This was a toggling mark, and we're either now enabled or we were when we encountered it.
-                    # Remove the mark.
-                    indexed_doc = (
-                        indexed_doc[: directive.start() + offset]
-                        + indexed_doc[directive.end() + offset :]
-                    )
-                    delta = 0 - len(directive.group(0))
-                    offset += delta
-
-                if not enabled or status_toggled or toggling_directive:
-                    continue
-
-                # Determine label path.
-                label = None
-                label_path_components = []
-                if directive.group(1):  # leading bracketed span
-                    label = directive.group(1)
-                elif directive.group(2):  # leading implicit non-whitespace span
-                    label = directive.group(2)
-                span_contents = label  # for replacement
-
-                # Still need to check for a label path within the directive.
-                label_match = re.match(r"^([^\|\[~]+)", params)
-                if label_match:
-                    label_match_text = label_match.group(0).strip()
-
-                    # Process aliases before splitting path.
-                    if len(self.aliases) > 0 and len(label_match_text) > 0:
-                        label_match_text = re.sub(
-                            TextIndex._alias_token_pattern,
-                            self._alias_replace,
-                            label_match_text,
-                        )
-
-                    # Handle wildcards in label path.
-                    label_match_text = self.process_wildcards(
-                        label, label_match_text
-                    )
-
-                    # Split label path.
-                    label_path_components = label_match_text.split(
-                        self._path_delimiter
-                    )
-
-                    # Having already replaced alias references, check for alias definition at end of label path.
-                    alias_definition_match = re.search(
-                        TextIndex._alias_definition_pattern,
-                        label_path_components[-1],
-                    )
-                    if alias_definition_match:
-                        label_path_components[-1] = label_path_components[-1][
-                            : alias_definition_match.start()
-                        ]
-
-                    # Remove quotes from path elements.
-                    label_path_components = [
-                        component.strip("'\"")
-                        for component in label_path_components
-                    ]
-
-                    last_component = label_path_components[-1]
-                    if (
-                        last_component != self._path_delimiter
-                        and last_component != ""
-                    ):
-                        label = last_component
-                        label_path_components.pop()  # remove last item, which
-                        # is now the label.
-                    if (
-                        len(label_path_components) > 0
-                        and label_path_components[-1] == ""
-                    ):
-                        label_path_components.pop()  # remove empty last item.
-
-                    # Trim label path from params.
-                    params = (
-                        params[: label_match.start()]
-                        + params[label_match.end() :]
-                    )
-
-                    # Check for alias definition.
-                    alias_without_reference = False
-                    if alias_definition_match:
-                        alias_name = alias_definition_match.group(1)
-                        if alias_name.startswith(TextIndex._alias_prefix):
-                            alias_without_reference = True
-                            alias_name = alias_name.lstrip(
-                                TextIndex._alias_prefix
-                            )
-
-                        if alias_definition_match.start() > 0:
-                            # Alias definition at end of an internally-specified
-                            # label.
-                            # Trim alias portion from label, and define.
-                            self.define_alias(
-                                alias_name, label_path_components + [label]
-                            )
-                        else:
-                            # Alias found at start of label. Either an alias
-                            # reference, or a definition without an internal
-                            # label (foo>#bar or just #bar).
-                            if len(label_path_components) == 0:
-                                # No path components. Could be an alias
-                                # definition at root, or an alias reference.
-                                # Try to load the alias.
-                                if alias_name in self.aliases:
-                                    # It's a valid alias reference. Load alias.
-                                    label = self.aliases[alias_name][
-                                        alias_label
-                                    ]
-                                    label_path_components = self.aliases[
-                                        alias_name
-                                    ][TextIndex._alias_path]
-                                    self.inform(
-                                        f"\tLoaded alias {self.aliases[alias_name]} for directive: {directive.group(0)}"
-                                    )
-                                else:
-                                    # No path components, and an alias reference to a non-existent alias. Define a new alias instead.
-                                    if span_contents and len(span_contents) > 0:
-                                        label = span_contents
-                                        self.define_alias(
-                                            alias_name,
-                                            label_path_components + [label],
-                                        )
-                            else:
-                                # Path components exist, so this is an alias definition without an internal label.
-                                if span_contents and len(span_contents) > 0:
-                                    # We already had a label from either a bracketed span, or implicitly. Define alias.
-                                    label = span_contents
-                                    self.define_alias(
-                                        alias_name,
-                                        label_path_components + [label],
-                                    )
-                                else:
-                                    # No label specified either internally or previously; can't define an alias.
-                                    label = None
-                                    self.inform(
-                                        f"Alias definition without a label: {directive.group(0)}",
-                                        severity="warning",
-                                    )
-
-                        if alias_without_reference:
-                            if label:
-                                self.inform(
-                                    f"\tUnreferenced alias created; skipping rest of directive: {directive.group(0)}"
-                                )
-                            else:
-                                self.inform(
-                                    f"\tUnreferenced alias definition without a label; skipping rest of directive: {directive.group(0)}",
-                                    severity="warning",
-                                )
-
-                            # Replace directive in indexed_document.
-                            span_html = f"{emphasis(span_contents) if span_contents else ''}"
-                            indexed_doc = (
-                                indexed_doc[: directive.start() + offset]
-                                + span_html
-                                + indexed_doc[directive.end() + offset :]
-                            )
-                            delta = len(span_html) - len(directive.group(0))
-                            offset += delta
-                            continue
-
-                self.inform(f"\tLabel: {label}")
-                if len(label_path_components) > 0:
-                    self.inform(f"\tPath: {label_path_components}")
-
-                if not label:
-                    self.inform(
-                        f"No entry label specified in directive. Ignoring: {directive.group(0)}",
-                        severity="warning",
-                    )
-                    continue
-
-                # Suffix.
-                params = params.strip()
-                suffix_match = re.search(r"\s*\[([^\]]+)(?<!\\)\]\s*", params)
-                if suffix_match:
-                    suffix = suffix_match.group(1)
-                    params = (
-                        params[: suffix_match.start()]
-                        + params[suffix_match.end() :]
-                    )
-                    self.inform(f"\tSuffix: {suffix}")
-
-                # Sort key.
-                params = params.strip()
-                sort_match = re.search(r"\s*\~(['\"]?)(.+)\1$", params)
-                if sort_match:
-                    sort_key = sort_match.group(2)
-
-                    # Handle wildcards in sort key.
-                    sort_key = self.process_wildcards(
-                        span_contents, sort_key, True
-                    )
-
-                    self.inform(f"\tSort as: {sort_key}")
-                    params = (
-                        params[: sort_match.start()]
-                        + params[sort_match.end() :]
-                    )
-
-                # Cross-references.
-                cross_match = re.match(r"\|(.+)$", params)
-                create_ref = True
-                if cross_match:
-                    refs_string = cross_match.group(1).strip()
-
-                    # Process aliases before splitting path.
-                    if len(self.aliases) > 0 and len(refs_string) > 0:
-                        refs_string = re.sub(
-                            TextIndex._alias_token_pattern,
-                            self._alias_replace,
-                            refs_string,
-                        )
-
-                    # Handle wildcards in cross-refs.
-                    refs_string = self.process_wildcards(
-                        span_contents, refs_string
-                    )
-
-                    refs = refs_string.split(self._refs_delimiter)
-                    for ref in refs:
-                        inbound = False
-                        ref_type = self.see
-                        ref = ref.strip()
-
-                        if ref.startswith(self._inbound_marker):
-                            inbound = True
-                            ref = ref[len(self._inbound_marker) :]
-
-                        if ref.startswith(self._also_marker):
-                            ref_type = self._also
-                            ref = ref[len(self._also_marker) :]
-                        elif not inbound:
-                            # Don't create a (page-)reference for this mark's entry if there's a (non-also) cross-reference.
-                            create_ref = False
-
-                        ref_path_components = ref.split(self._path_delimiter)
-                        ref_path_components = [
-                            component.strip("'\"")
-                            for component in ref_path_components
-                        ]
-
-                        if inbound:
-                            # Cross-ref in different entry, referencing this mark's entry. Find other entry.
-                            source_label = ref_path_components[-1]
-                            source_path_components = []
-                            if len(ref_path_components) > 1:
-                                source_path_components = ref_path_components[
-                                    :-1
-                                ]
-                            source_entry, existed = self.entry_at_path(
-                                source_label, source_path_components, True
-                            )
-                            self.inform(
-                                f"\tCreating inbound '{ref_type}' cross-reference from entry '{source_label}' {'(Path: ' + source_path_components + ')' if len(ref_path_components) > 1 else '(at root)'}"
-                            )
-                            source_entry.add_cross_reference(
-                                ref_type, label_path_components + [label]
-                            )
-
-                        else:
-                            # Cross-ref within this mark's entry.
-                            cross_references.append(
-                                {
-                                    self._ref_type: ref_type,
-                                    self._path: ref_path_components,
-                                }
-                            )
-
-                    params = (
-                        params[: cross_match.start()]
-                        + params[cross_match.end() :]
-                    )
-                    if len(cross_references) > 0:
-                        self.inform(f"\tCross-refs: {cross_references}")
-
-                if len(params.strip()) > 0:
-                    self.inform(
-                        f"*** Unparsed directive content: '{params}' (please report this!) ***",
-                        severity="warning",
-                    )
-
-                # Prepare next reference id.
-                entry_number += 1
-
-                # Insert into entries tree.
-                entry, existed = self.entry_at_path(
-                    label, label_path_components, not closing
-                )
-                display_entry_path = f" {self._path_delimiter} ".join(
-                    label_path_components + [label]
-                )
-                if not entry and closing:
-                    # Entry doesn't exist, but we're trying to end its (non-existent) range.
-                    self.inform(
-                        f'Attempted to close non-existent entry "{display_entry_path}". Ignoring: {directive.group(0)}',
-                        severity="warning",
-                    )
-                    continue
-                if entry and closing:
-                    # Entry exists, and we're closing its range. If it already has a closing ID, update it.
-                    if len(entry.references) > 0:
-                        if TextIndexEntry.end_id in entry.references[-1]:
-                            self.inform(
-                                f'Altering existing end-location of range for reference "{display_entry_path}": {directive.group(0)}',
-                                severity="warning",
-                            )
-                        entry.update_latest_ref_end(
-                            entry_number, suffix, section_number
-                        )
-                        self.inform(
-                            f'\tSet end-location for reference to "{display_entry_path}".'
-                        )
-                    else:
-                        # Entry exists, but has no references, so we can't set an end id.
-                        self.inform(
-                            f'Attempted to close non-existent reference for existing entry "{display_entry_path}". Ignoring: {directive.group(0)}',
-                            severity="warning",
-                        )
-                else:
-                    # We now have the correct entry, whether it existed before or not. Populate.
-                    if create_ref:
-                        entry.add_reference(
-                            entry_number, suffix, emphasis, section_number
-                        )
-                    elif suffix or emphasis:
-                        self.inform(
-                            f"Ignoring suffix/emphasis in cross-reference: {directive.group(0)}",
-                            severity="warning",
-                        )
-
-                    if sort_key:
-                        if entry.sort_key and entry.sort_key != sort_key:
-                            self.inform(
-                                f"Altering existing sort-key for reference \"{display_entry_path}\" (was '{entry.sort_key}', now '{sort_key}'). Directive was: {directive.group(0)}",
-                                severity="warning",
-                            )
-                        entry.sort_key = sort_key
-                    if len(cross_references) > 0:
-                        for ref in cross_references:
-                            entry.add_cross_reference(
-                                ref[self._ref_type], ref[self._path]
-                            )
-                        if existed:
-                            self.inform(
-                                f"\tAdded cross-references to existing entry '{label}'"
-                            )
-
-                # Replace directive in indexed_document with suitable span.
-                span_html = f'<span id="{self.index_id_prefix}{entry_number}" class="{TextIndex._shared_class}">{emphasis(span_contents) if span_contents else ""}</span>'
-                indexed_doc = (
-                    indexed_doc[: directive.start() + offset]
-                    + span_html
-                    + indexed_doc[directive.end() + offset :]
-                )
-                delta = len(span_html) - len(directive.group(0))
-                offset += delta
-                last_mark_end = directive.end() + offset
-
-            self.inform(f"{len(self)} entries created.", force=True)
-
-            # Replace each index placeholder with a suitable HTML index.
-            self._indexed_document = indexed_doc  # needs an initial value otherwise index_html() will recurse.
-            indexed_doc = re.sub(
-                TextIndex._index_placeholder_pattern,
-                self._index_replace,
-                indexed_doc,
+    def _process_directive(self, directive: str) -> None:
+        """Process a single index directive and add it to the index tree."""
+        try:
+            entry = self._parse_index_entry(directive)
+            self._add_entry(entry)
+        except Exception as exc:
+            self.inform(
+                f"Failed to process directive '{directive}': {exc}", "warning"
             )
 
-        self._indexed_document = indexed_doc
+    def _parse_index_entry(self, directive: str):
+        """Convert a directive string into a TextIndexEntry (hierarchical)."""
+        parts = [p.strip() for p in directive.split("!") if p.strip()]
+        entry = None
+        for label in parts:
+            entry = self._get_or_create_entry(label, entry)
+        return entry
+
+    def _get_or_create_entry(self, label: str, parent) -> TextIndexEntry:
+        """Return existing entry with label under parent or create a new one."""
+        existing = self.find_entry(label, parent)
+        if existing:
+            return existing
+
+        new_entry = TextIndexEntry(label=label, parent=parent, textindex=self)
+        if parent:
+            parent.entries.append(new_entry)
+        else:
+            self.entries.append(new_entry)
+        return new_entry
+
+    def _add_entry(self, entry: TextIndexEntry) -> None:
+        """Hook for any extra index-entry initialization (cross-refs, etc.)."""
+        label_lower = entry.label.lower()
+
+        if label_lower.startswith("see "):
+            entry.cross_references.append(
+                {"type": "see", "target": entry.label[4:].strip()}
+            )
+        elif label_lower.startswith("see also "):
+            entry.cross_references.append(
+                {"type": "see_also", "target": entry.label[9:].strip()}
+            )
+        # Extend here for aliasing, grouping, etc.
+
+    def _render_final_index(self) -> str:
+        """Render the entire index hierarchy into HTML."""
+        sorted_entries = self.sort_entries(self.entries)
+        html_parts: list[str] = ["<dl class='text-index'>"]
+
+        for entry in sorted_entries:
+            html_parts.append(self.entry_html(entry))
+
+        html_parts.append("</dl>")
+        return "\n".join(html_parts)
+
+    def _insert_index_placeholder(self, text: str, index_html: str) -> str:
+        """Replace the index placeholder or append index HTML at the end."""
+        placeholder_pattern = re.compile(r"{\^index}")
+
+        if placeholder_pattern.search(text):
+            return placeholder_pattern.sub(index_html, text)
+
+        self.inform(
+            "No {^index} placeholder found; appending index at end.", "warning"
+        )
+        return text.rstrip() + "\n\n" + index_html
+
+    # ---------------------------------------------------------------------------
+    # Optional: helper for section mode (stub for now)
+    # ---------------------------------------------------------------------------
+
+    def _split_into_sections(self, text: str) -> str:
+        """Split document into sections (stub for section_mode support)."""
+        # Placeholder implementation; replace with your section logic.
+        return text
 
     def define_alias(self, name: str, path: str) -> None:
         """Define an alias for a given path in the configuration.
@@ -1563,15 +1202,15 @@ class TextIndex:
         if run_in_children:
             if entry.has_children():
                 if has_refs:
-                    delim = self._list_separator
+                    delim = self.config.list_separator
                 elif not has_xrefs:
-                    delim = self._path_separator
+                    delim = self.config.path_separator
                 else:
-                    delim = self._category_separator
+                    delim = self.config.category_separator
 
                 refs_html += delim + self._join_children(entry)
             elif entry.has_also_refs():
-                refs_html += self._category_separator
+                refs_html += self.config.category_separator
 
         # --- 4. Inline also-references when no children ---
         if (
@@ -1612,7 +1251,7 @@ class TextIndex:
 
     def _join_children(self, entry: TextIndexEntry) -> str:
         """Helper to generate HTML for sorted child entries."""
-        return self._list_separator.join(
+        return self.config.list_separator.join(
             self.entry_html(child) for child in self.sort_entries(entry.entries)
         )
 
@@ -1631,7 +1270,7 @@ class TextIndex:
         prefix = (
             f" (<em>{label}</em> "
             if running_in
-            else f"{TextIndex._category_separator}<em>{label}</em> "
+            else f"{self.config.category_separator}<em>{label}</em> "
         )
         return f"{prefix}{xrefs_html}", True
 
@@ -1643,9 +1282,9 @@ class TextIndex:
         if not entry_refs_html:
             return "", False
         prefix = (
-            TextIndex._category_separator
+            self.config.category_separator
             if has_prev
-            else TextIndex._field_separator
+            else self.config.field_separator
         )
         return f"{prefix}{entry_refs_html}", True
 
@@ -1657,14 +1296,14 @@ class TextIndex:
         if not also_refs_html:
             return ""
         label = (
-            self.see_also_label.lower()
+            self.config.see_also_label.lower()
             if running_in
-            else self.see_also_label.capitalize()
+            else self.config.see_also_label.capitalize()
         )
         prefix = (
             f" (<em>{label}</em> "
             if running_in
-            else f"{TextIndex._category_separator}<em>{label}</em> "
+            else f"{self.config.category_separator}<em>{label}</em> "
         )
         return f"{prefix}{also_refs_html}"
 
@@ -1677,6 +1316,28 @@ class TextIndex:
                 if path_len > 1:
                     ancestors = path[:-1]
                 entry, created = self.entry_at_path(label, ancestors, False)
+                return entry
+
+        return None
+
+    def find_entry(
+        self, label: str, parent: TextIndexEntry | None = None
+    ) -> TextIndexEntry | None:
+        """Find an existing entry with the given label under the parent.
+
+        Args:
+            label: The entry label to search for.
+            parent: Parent entry to limit the search scope.
+                If None, search top-level entries.
+
+        Returns:
+            The matching TextIndexEntry if found, otherwise None.
+        """
+        search_space = parent.entries if parent else self.entries
+        label_norm = label.strip().lower()
+
+        for entry in search_space:
+            if entry.label.strip().lower() == label_norm:
                 return entry
 
         return None
@@ -1816,13 +1477,13 @@ class TextIndex:
         return self.index_html(the_match.group(1))
 
     def inform(
-        self, msg, severity: str = "normal", force: bool = False
+        self, message: str, severity: str = "normal", force: bool = False
     ) -> None:
         """This method prints an information message to the console with
         optional severity and force flags.
 
         Args:
-            msg (str): The message to be printed.
+            message (str): The message to be printed.
             severity (str, optional):
                 The severity level of the message. Defaults to "normal".
             force (bool, optional):
@@ -1832,22 +1493,11 @@ class TextIndex:
         Returns:
             None: This method does not return any value.
         """
-        if not (
-            force
-            or self.verbose
-            or severity == "warning"
-            or severity == "error"
-        ):
+        if not self.config.verbose and not force:
             return
-        out = "TextIndex"
-        match severity:
-            case "warning":
-                out += f" [Warning]: {msg}"
-            case "error":
-                out += f" [ERROR]: {msg}"
-            case _:
-                out += f": {msg}"
-        print(out)
+        if severity == "warning" and not self.config.show_warnings:
+            return
+        print(f"TextIndex [{severity.upper()}]: {message}")
 
     def load_concordance_file(self, path) -> None:
         """Load a concordance file and process it to add index marks to the
@@ -2134,11 +1784,13 @@ class TextIndex:
         Returns:
             str: Cross-reference label
         """
-        return self._see_also_label
+        return self.config.see_also_label
+        # return self._see_also_label
 
     @see_also_label.setter
     def see_also_label(self, val) -> None:
-        self._see_also_label = val
+        self.config.see_also_label = val
+        # self._see_also_label = val
         self._indexed_document = None
 
     @property
