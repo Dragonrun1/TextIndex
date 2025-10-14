@@ -90,6 +90,37 @@ def elide_end(start: int, end: int) -> int:
     return int(result)
 
 
+@dataclass
+class IndexConfig:
+    """Configuration options for text index generation and rendering."""
+
+    # --- Labels ---
+    see_label: str = "see"
+    see_also_label: str = "see also"
+
+    # --- Rendering behavior ---
+    category_separator: str = ". "
+    field_separator: str = ", "
+    list_separator: str = "; "
+    path_separator: str = ": "
+
+    # --- Structural behavior ---
+    run_in_children: bool = True
+    group_headings: bool = True
+    sort_emphasis_first: bool = False
+
+    # --- Output format ---
+    output_format: str = "html"  # or "markdown", "text"
+
+    # --- Logging and diagnostics ---
+    verbose: bool = False
+    show_warnings: bool = True
+
+    # --- Advanced options ---
+    section_mode: bool = False
+    case_sensitive_sort: bool = False
+
+
 class TextIndexEntry:
     """Provides a data structure for representing entries in a text index.
 
@@ -466,7 +497,7 @@ class TextIndexEntry:
                 refs.append(locator_html)
 
             if len(refs) > 0:
-                return IndexConfig.field_separator.join(refs)
+                return self.textindex.field_separator.join(refs)
 
         return None
 
@@ -680,37 +711,6 @@ def string_to_slug(text) -> str:
 
     # Return in lowercase
     return text.lower()
-
-
-@dataclass
-class IndexConfig:
-    """Configuration options for text index generation and rendering."""
-
-    # --- Labels ---
-    see_label: str = "see"
-    see_also_label: str = "see also"
-
-    # --- Rendering behavior ---
-    category_separator: str = ". "
-    field_separator: str = ", "
-    list_separator: str = "; "
-    path_separator: str = ": "
-
-    # --- Structural behavior ---
-    run_in_children: bool = True
-    group_headings: bool = True
-    sort_emphasis_first: bool = False
-
-    # --- Output format ---
-    output_format: str = "html"  # or "markdown", "text"
-
-    # --- Logging and diagnostics ---
-    verbose: bool = False
-    show_warnings: bool = True
-
-    # --- Advanced options ---
-    section_mode: bool = False
-    case_sensitive_sort: bool = False
 
 
 class TextIndex:
@@ -948,7 +948,7 @@ class TextIndex:
 
         self.intermediate_document = text
 
-    def create_index(self, text: str) -> str:
+    def create_index(self, text: str | None = None) -> str:
         """Main entry point to build and insert the text index into document.
 
         Steps:
@@ -959,13 +959,15 @@ class TextIndex:
             5. Insert the generated index back into the text.
 
         Args:
-            text(str): Text to build and insert index into.
+            text(str | None): Text to build and insert index into.
 
         Returns:
             str: New text with index
         """
         self.inform("Starting index creation...", force=True)
 
+        if text is None:
+            text = self.original_document or ""
         doc = self._prepare_document(text)
         directives = self._find_index_directives(doc)
 
@@ -1333,13 +1335,15 @@ class TextIndex:
         Returns:
             The matching TextIndexEntry if found, otherwise None.
         """
+        key = (label.lower(), parent.label.lower() if parent else None)
+        if key in self._entry_cache:
+            return self._entry_cache[key]
+
         search_space = parent.entries if parent else self.entries
-        label_norm = label.strip().lower()
-
         for entry in search_space:
-            if entry.label.strip().lower() == label_norm:
+            if entry.label.strip().lower() == label.strip().lower():
+                self._entry_cache[key] = entry
                 return entry
-
         return None
 
     def group_heading(self, letter, is_first=False):
@@ -1800,7 +1804,7 @@ class TextIndex:
         Returns:
             str: Cross-reference label
         """
-        return self._see_label
+        return self.config.see_label
 
     @see_label.setter
     def see_label(self, val) -> None:
