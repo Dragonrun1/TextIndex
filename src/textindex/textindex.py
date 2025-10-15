@@ -46,10 +46,11 @@ from typing import (
     Any,
     Dict,
     List,
-    Literal,
     Optional,
     Self,
     Tuple,
+    get_args,
+    get_origin,
 )
 
 from textindex.renderer import HTMLIndexRenderer
@@ -123,7 +124,8 @@ class IndexConfig:
     sort_emphasis_first: bool = False
 
     # --- Output format ---
-    output_format: str = Literal["html", "markdown", "text"]
+    # Literal["html", "markdown", "text"]
+    output_format: str = "html"
 
     # --- Logging and diagnostics ---
     verbose: bool = False
@@ -132,6 +134,12 @@ class IndexConfig:
     # --- Advanced options ---
     section_mode: bool = False
     case_sensitive_sort: bool = False
+
+    # --- Optional header/footer support ---
+    include_header: bool = False
+    include_footer: bool = False
+    header_text: str = "<h2>Index</h2>"
+    footer_text: str = ""
 
 
 @dataclass
@@ -506,34 +514,67 @@ class TextIndex:
         self.section_mode = False
 
     def apply_config(self, config_string: str) -> None:
-        """Type-safe config updater for dataclass IndexConfig."""
+        """Parse and apply a configuration string to the IndexConfig dataclass.
+
+        Accepts key=value pairs separated by spaces, e.g.:
+            "path_separator=' > ' include_header=True"
+        """
         if not config_string:
             return
 
-        valid_keys = {f.name for f in fields(self.config.__class__)}
         import shlex
+
+        valid_fields = {f.name: f for f in fields(self.config)}
 
         for token in shlex.split(config_string):
             if "=" not in token:
                 continue
-            key, value = token.split("=", 1)
-            key, value = key.strip(), value.strip().strip("'\"")
+            key, raw_value = token.split("=", 1)
+            key = key.strip()
+            value = raw_value.strip().strip("'\"")  # keep inner spacing intact
 
-            if key in valid_keys:
-                field_type = next(
-                    f.type
-                    for f in fields(self.config.__class__)
-                    if f.name == key
-                )
-                try:
-                    value = field_type(value)
-                except Exception:
-                    pass
-                setattr(self.config, key, value)
-            elif hasattr(self, "inform"):
-                self.inform(
-                    f"Unknown config key ignored: {key}", severity="warning"
-                )
+            if key not in valid_fields:
+                # Ignore unknown keys
+                if hasattr(self, "inform"):
+                    self.inform(
+                        f"Ignoring unknown config key: {key}",
+                        severity="warning",
+                    )
+                continue
+
+            field_info = valid_fields[key]
+            field_type = field_info.type
+            origin = get_origin(field_type)
+            args = get_args(field_type)
+
+            # Default cast function is identity
+            def cast_func(v):
+                return v
+
+            # Handle Optional[...] annotations
+            if origin is not None and type(None) in args:
+                inner_type = next(a for a in args if a is not type(None))
+                field_type = inner_type
+
+            # Type-based casting
+            if field_type is bool:
+
+                def cast_func(v):
+                    return v.lower() in {"true", "1", "yes", "on"}
+            elif field_type is int:
+                cast_func = int
+            elif field_type is float:
+                cast_func = float
+            elif field_type is str:
+                cast_func = str
+
+            try:
+                value = cast_func(value)
+            except Exception:
+                # If casting fails, leave value as string
+                pass
+
+            setattr(self.config, key, value)
 
     def convert_latex_index_commands(self) -> None:
         """Converts LaTeX index commands in the document to index marks.
