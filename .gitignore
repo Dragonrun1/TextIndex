@@ -211,3 +211,10 @@ __marimo__/
 
 # This repo
 # *-converted.md
+.ai/
+.ai_backup/
+.aiassistant/
+docs/
+DEVOXXGENIE.md
+docker-compose.yaml
+installer.sh
