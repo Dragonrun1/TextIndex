@@ -42,6 +42,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field, fields
+from operator import methodcaller
 from typing import (
     Any,
     Dict,
@@ -280,9 +281,6 @@ class TextIndexEntry:
         key = self.sort_key if self.sort_key else emphasis(self.label, True)
         return key.lower()
 
-    # ---------------------------------------------------------------------
-    # Internal helpers for rendering
-    # ---------------------------------------------------------------------
     def _sorted_references(self) -> List[Dict[str, Any]]:
         """Return sorted references respecting emphasis and section mode.
 
@@ -294,7 +292,9 @@ class TextIndexEntry:
         if self.textindex.section_mode or self.textindex.sort_emphasis_first:
             refs.sort(
                 key=lambda d: (
-                    not d.get(self.locator_emphasis, False),  # False (emph) first
+                    not d.get(
+                        self.locator_emphasis, False
+                    ),  # False (emph) first
                     d.get(self.start_id, 0),
                 )
             )
@@ -378,7 +378,11 @@ class TextIndexEntry:
             seen.add(key)
             rendered.append(self._build_xref_html(ref))
 
-        return self.textindex.config.list_separator.join(rendered) if rendered else None
+        return (
+            self.textindex.config.list_separator.join(rendered)
+            if rendered
+            else None
+        )
 
     def _build_xref_html(self, ref: Dict[str, Any]) -> str:
         """Render a single cross-reference entry."""
@@ -408,9 +412,6 @@ class TextIndexEntry:
             key=lambda d: d[self.textindex._ref_type], reverse=True
         )
 
-    # ---------------------------------------------------------------------
-    # Utility / meta
-    # ---------------------------------------------------------------------
     def __bool__(self) -> bool:
         return True
 
@@ -518,6 +519,7 @@ class TextIndex:
             document_text (str): document text
             config (IndexConfig): configuration options
         """
+        self._alias_book: dict[str, list[str]] = {}
         self.config = config or IndexConfig()
         self.entries: list[TextIndexEntry] = []
         self._entry_cache: dict[tuple[str, str | None], TextIndexEntry] = {}
@@ -623,8 +625,8 @@ class TextIndex:
         latex_index_cmd_start = r"\\index\{"
         latex_matches = re.finditer(latex_index_cmd_start, text)
         for lmark in latex_matches:
-            # Scan string to find end of \index{…} command, ensuring all braces
-            # are balanced.
+            # Scan string to find the end of \index{…} command, ensuring all
+            # braces are balanced.
             quit_after = 150
             braces_open = 1
             idx = lmark.end() + offset
@@ -640,7 +642,7 @@ class TextIndex:
                 idx += 1
 
             if braces_open != 0:
-                # Didn't find end of index command.
+                # Didn't find the end of index command.
                 continue
 
             start, end = lmark.start() + offset, idx
@@ -649,7 +651,7 @@ class TextIndex:
 
             # Check for continuing locator syntax.
             continuing = False
-            cont_match = re.search(r"\|([(\)])$", cmd_content)
+            cont_match = re.search(r"\|([()])$", cmd_content)
             if cont_match:
                 if cont_match.group(1) == ")":
                     continuing = True
@@ -727,7 +729,7 @@ class TextIndex:
         self.intermediate_document = text
 
     def create_index(self, text: str | None = None) -> str:
-        """Main entry point to build and insert the text index into document.
+        """Main entry point to build and insert the text index into a document.
 
         Steps:
             1. Normalize text and prepare for indexing.
@@ -745,7 +747,11 @@ class TextIndex:
         self.inform("Starting index creation...", force=True)
 
         if text is None:
-            text = (self.intermediate_document if self.intermediate_document is not None else self.original_document) or ""
+            text = (
+                self.intermediate_document
+                if self.intermediate_document is not None
+                else self.original_document
+            ) or ""
         doc = self._prepare_document(text)
 
         # Reset state for (re)build
@@ -823,7 +829,9 @@ class TextIndex:
             visible_html = self._render_visible_text(visible_text)
 
             # Parse body into path/xrefs/flags
-            parsed = self._parse_mark_body(body, fallback_label=self._plain_text(visible_text))
+            parsed = self._parse_mark_body(
+                body, fallback_label=self._plain_text(visible_text)
+            )
 
             # Resolve target path for reference (alias ref or explicit path or fallback)
             target_path = parsed.get("path")
@@ -842,50 +850,73 @@ class TextIndex:
                 self._alias_book[alias_def] = list(target_path)
 
             # Decide whether to emit an inline anchor/span and create a locator
-            is_nonvisible = (visible_text.strip() == "")
+            is_nonvisible = visible_text.strip() == ""
             suppress_anchor = is_nonvisible and bool(alias_def)
 
-            # Suppress locator creation for xref-only marks only in headings? For legacy example, emit empty anchors too.
-            xref_only = (parsed.get("path") in (None, [])) and (parsed.get("see") or parsed.get("see_also"))
-            # Legacy example expects even xref-only invisible marks to emit an (empty) anchor to maintain locator IDs.
+            # Suppress locator creation for xref-only marks only in headings?
+            # For legacy example, emit empty anchors too.
+            xref_only = (parsed.get("path") in (None, [])) and (
+                parsed.get("see") or parsed.get("see_also")
+            )
+            # Legacy example expects even xref-only invisible marks to emit an
+            # (empty) anchor to maintain locator IDs.
             # Therefore, do not suppress anchors here.
 
             locator_id = None
 
-            # Create or find entry along the path (fallback to label if xref-only)
+            # Create or find an entry along the path
+            # (fallback to label if xref-only)
             if target_path or xref_only:
-                if not target_path and xref_only and parsed.get("fallback_label"):
+                if (
+                    not target_path
+                    and xref_only
+                    and parsed.get("fallback_label")
+                ):
                     target_path = [parsed["fallback_label"]]
                 if target_path:
                     label = target_path[-1]
                     ancestors = target_path[:-1]
                     entry, _ = self.entry_at_path(label, ancestors, True)
-                    # Assign sort key if provided
+                    # Assign a sort key if provided
                     if parsed.get("sort_key"):
                         entry.sort_key = parsed["sort_key"]
                     # Cross-references (store structurally; renderer will output)
                     for p in parsed.get("see", []):
-                        entry.cross_references.append({self._ref_type: self._prefix, self._path: p})
+                        entry.cross_references.append(
+                            {self._ref_type: self._prefix, self._path: p}
+                        )
                     for p in parsed.get("see_also", []):
-                        entry.cross_references.append({self._ref_type: self._also, self._path: p})
+                        entry.cross_references.append(
+                            {self._ref_type: self._also, self._path: p}
+                        )
 
                     # Add reference only if not suppressed and not xref-only
                     if not suppress_anchor and not xref_only:
                         locator_id = self._next_locator_id
                         self._next_locator_id += 1
-                        entry.add_reference(locator_id, locator_emphasis=parsed.get("emphasis", False))
+                        entry.add_reference(
+                            locator_id,
+                            locator_emphasis=parsed.get("emphasis", False),
+                        )
                         if suffix_text:
-                            entry.references[-1][entry.suffix] = " " + self._render_visible_text(suffix_text)
+                            entry.references[-1][entry.suffix] = (
+                                " " + self._render_visible_text(suffix_text)
+                            )
 
                         # Handle range open/close using '/' and alias-linked sequences
                         key = tuple(target_path)
                         if parsed.get("continuing"):
                             if key in self._open_ranges:
                                 # Close existing range for this path
-                                self._open_ranges[key][entry.end_id] = locator_id
+                                self._open_ranges[key][entry.end_id] = (
+                                    locator_id
+                                )
                                 # Propagate end_suffix (e.g., passim) to that ref's end
                                 if suffix_text:
-                                    self._open_ranges[key][entry.end_suffix] = " " + self._render_visible_text(suffix_text)
+                                    self._open_ranges[key][entry.end_suffix] = (
+                                        " "
+                                        + self._render_visible_text(suffix_text)
+                                    )
                                 del self._open_ranges[key]
                             else:
                                 # Open new range starting at this locator
@@ -894,7 +925,10 @@ class TextIndex:
                             # If this is an alias-ref continuation occurrence and no open range exists yet,
                             # open a range starting at this locator to be closed by a later '/'. This mirrors
                             # the legacy behavior for entries like “tap dance (QMK feature)”.
-                            if parsed.get("alias_ref") and key not in self._open_ranges:
+                            if (
+                                parsed.get("alias_ref")
+                                and key not in self._open_ranges
+                            ):
                                 self._open_ranges[key] = entry.references[-1]
             else:
                 # No target path; purely non-structural mark (e.g., only xrefs)
@@ -910,7 +944,9 @@ class TextIndex:
                 if locator_id is None:
                     locator_id = self._next_locator_id
                     self._next_locator_id += 1
-                output.append(f'<span id="{self._index_id_prefix}{locator_id}" class="{self._shared_class}">{visible_html}</span>')
+                output.append(
+                    f'<span id="{self._index_id_prefix}{locator_id}" class="{self._shared_class}">{visible_html}</span>'
+                )
 
             pos = end
 
@@ -942,7 +978,9 @@ class TextIndex:
             return text[1:-1]
         return text
 
-    def _parse_mark_body(self, body: str | None, fallback_label: str | None = None) -> Dict[str, Any]:
+    def _parse_mark_body(
+        self, body: str | None, fallback_label: str | None = None
+    ) -> Dict[str, Any]:
         """Parse the inner body of an index mark into structured data."""
         result: Dict[str, Any] = {
             "path": None,
@@ -977,7 +1015,7 @@ class TextIndex:
         if m:
             result["sort_key"] = m.group(1)
             s = s[: m.start()] + s[m.end() :]
-        # Alias define and/or ref: ##name or #name
+        # Alias defines and/or refs: ##name or #name
         for m in re.finditer(r"##([A-Za-z0-9\-_]+)", s):
             result["alias_def"] = m.group(1)
         s = re.sub(r"##[A-Za-z0-9\-_]+", "", s)
@@ -985,7 +1023,7 @@ class TextIndex:
         if m:
             result["alias_ref"] = m.group(1)
             s = s[: m.start()] + s[m.end() :]
-        # Cross references | … and |+ …  (semicolon-separated)
+        # Cross-references | … and |+ …  (semicolon-separated)
         if "|" in s:
             main, _, tail = s.partition("|")
             s = main.strip()
@@ -998,11 +1036,15 @@ class TextIndex:
                         result["see_also"].append(self._parse_xref_target(p))
                     else:
                         result["see"].append(self._parse_xref_target(p))
-        # Remaining is the main path (may be empty)
+        # Remaining is the main path (can be empty)
         main_text = s.strip()
         if main_text:
             # Split on > and strip quotes
-            segs = [seg.strip() for seg in main_text.split(self._path_delimiter) if seg.strip()]
+            segs = [
+                seg.strip()
+                for seg in main_text.split(self._path_delimiter)
+                if seg.strip()
+            ]
             path = [self._strip_quotes(seg) for seg in segs]
             result["path"] = path
             if path:
@@ -1010,11 +1052,16 @@ class TextIndex:
         return result
 
     def _parse_path_text(self, text: str) -> list[str]:
-        segs = [seg.strip() for seg in text.split(self._path_delimiter) if seg.strip()]
+        segs = [
+            seg.strip()
+            for seg in text.split(self._path_delimiter)
+            if seg.strip()
+        ]
         return [self._strip_quotes(seg) for seg in segs]
 
     def _parse_xref_target(self, text: str) -> list[str]:
-        """Parse a cross-reference target text, resolving aliases and stripping sort keys.
+        """Parse a cross-reference target text, resolving aliases and stripping
+        sort keys.
 
         Supports forms like:
         - #alias
@@ -1041,7 +1088,10 @@ class TextIndex:
 
     @staticmethod
     def _strip_quotes(text: str) -> str:
-        if len(text) >= 2 and ((text[0] == '"' and text[-1] == '"') or (text[0] == "“" and text[-1] == "”")):
+        if len(text) >= 2 and (
+            (text[0] == '"' and text[-1] == '"')
+            or (text[0] == "“" and text[-1] == "”")
+        ):
             return text[1:-1]
         return text
 
@@ -1078,8 +1128,8 @@ class TextIndex:
     def entry_at_path(
         self, label: str, path_list: List[str], create: bool = True
     ) -> Tuple[TextIndexEntry, bool]:
-        """Returns entry named label at path path_list, and whether it already
-        existed or not.
+        """Returns the entry named label at path path_list, and whether it
+        already existed or not.
 
         Args:
             label (str): The name of the entry to retrieve.
@@ -1125,7 +1175,7 @@ class TextIndex:
                 entries.append(new_entry)
                 entries = new_entry.entries
                 entry = new_entry
-                # If we create any entry in the chain, we create all subsequent
+                # If we create any entry in the chain, we create all later
                 # ones too.
                 created = True
 
@@ -1175,7 +1225,9 @@ class TextIndex:
         output += '\t<dt class="group-separator">&nbsp;</dt>\n'
         # Optionally output a visible letter heading line
         if group_headings:
-            output += f'\t<dt class="group-separator group-heading">{letter}</dt>\n'
+            output += (
+                f'\t<dt class="group-separator group-heading">{letter}</dt>\n'
+            )
         return output
 
     @property
@@ -1193,6 +1245,7 @@ class TextIndex:
 
     def indexed_document(self):
         """Backward-compatible method for legacy scripts.
+
         Returns the indexed document just like old versions did.
         """
         return self.create_index()
@@ -1417,10 +1470,11 @@ class TextIndex:
         self.intermediate_document = conc_doc
 
         # Log results.
-        self.inform(
-            f"Concordance file processed. {len(concordance)} rules generated {marks_added} index marks.",
-            force=True,
+        mess = (
+            "Concordance file processed."
+            f"{len(concordance)} rules generated {marks_added} index marks."
         )
+        self.inform(mess, force=True)
 
     def process_wildcards(self, label, text, force_label_only=False):
         if label:
@@ -1442,13 +1496,11 @@ class TextIndex:
                     label_only = (
                         found_wildcard.group(1) != ""
                     ) or force_label_only
-                    if label_only:
-                        replacement = replace_label
-                    else:
-                        replacement = replace_path
-                    self.inform(
-                        f"\tFound {'(label-only) ' if label_only else ''}prefix match for '{label}': {replacement}"
-                    )
+                    replacement = replace_label if label_only else replace_path
+                    mess = "\tFound "
+                    mess += "(label-only) " if label_only else ""
+                    mess += f"prefix match for '{label}': {replacement}"
+                    self.inform(mess)
                 text = (
                     text[: found_wildcard.start()]
                     + replacement
@@ -1532,15 +1584,17 @@ class TextIndex:
             for k, v in tag_attrs.items():
                 attrs_html += f' {k}="{v}"'
 
-            return f'<h{head_level}{attrs_html}><a href="#{tag_id}">{title}</a></h{head_level}>'
+            return (
+                f"<h{head_level}{attrs_html}>"
+                f'<a href="#{tag_id}">{title}</a>'
+                f"</h{head_level}>"
+            )
 
         return None
 
     @property
     def should_run_in(self):
-        if isinstance(self.textindex.config.run_in_children, bool):
-            return self.textindex.config.run_in_children
-        return self.textindex.config.run_in_children.lower() == "true"
+        return self.config.run_in_children
 
     @should_run_in.setter
     def should_run_in(self, val) -> None:
@@ -1548,7 +1602,7 @@ class TextIndex:
             val = val.lower() == "true"
         elif not isinstance(val, bool):
             val = True
-        self.textindex.config.run_in_children = val
+        self.config.run_in_children = val
         self._indexed_document = None
 
     @property
@@ -1565,8 +1619,6 @@ class TextIndex:
         self._indexed_document = None
 
     def sort_entries(self, entries):
-        from operator import methodcaller
-
         return sorted(entries, key=methodcaller("sort_on"))
 
     def _add_entry(self, entry: TextIndexEntry) -> None:
@@ -1606,8 +1658,10 @@ class TextIndex:
             )
         return replacement
 
-    def _find_index_directives(self, text: str) -> list[str]:
+    @staticmethod
+    def _find_index_directives(text: str) -> list[str]:
         """Extract all index directives from text.
+
         Supports both modern and legacy syntaxes.
         """
         patterns = [
@@ -1701,16 +1755,16 @@ class TextIndex:
         return renderer.render()
 
     def _split_into_sections(self, text: str) -> str:
-        """Split document into sections (stub for section_mode support)."""
-        # Placeholder implementation; replace with your section logic.
+        """Split the document into sections (stub for section_mode support)."""
+        # Placeholder implementation; replace it with your section logic.
         return text
 
     def _postprocess_entries(self) -> None:
         """Minimal surgical consolidation to match example output.
 
-        Specifically handle the alias #td (tap dance) case by ensuring that any
+        Specifically, handle the alias #td (tap dance) case by ensuring that any
         stray top-level entry labeled 'dance' has its references merged into the
-        alias-resolved entry path, and then remove the stray entry. This aligns
+        alias-resolved entry path and then remove the stray entry. This aligns
         with the example output where ranges and passim belong to
         "tap dance (QMK feature)" rather than a separate 'dance' entry.
         """
