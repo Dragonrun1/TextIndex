@@ -21,7 +21,7 @@ import argparse
 import os
 import sys
 
-from src.textindex import textindex
+from textindex import textindex
 
 parser = argparse.ArgumentParser(allow_abbrev=False)
 parser.add_argument(
@@ -34,7 +34,7 @@ parser.add_argument(
 args = parser.parse_known_args()
 file_path = "example.md"
 conc_path = "example-concordance.tsv"
-verbose = args[0].verbose == True
+verbose = args[0].verbose
 
 this_script_path = os.path.abspath(os.path.expanduser(sys.argv[0]))
 file_path = os.path.join(os.path.dirname(this_script_path), file_path)
