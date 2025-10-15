@@ -38,9 +38,21 @@ Usage:
  index_html = index.index_html()
 """
 
+from __future__ import annotations
+
 import re
-from dataclasses import dataclass
-from typing import List, Literal, LiteralString, Self, Tuple
+from dataclasses import dataclass, field, fields
+from typing import (
+    Any,
+    Dict,
+    List,
+    Literal,
+    Optional,
+    Self,
+    Tuple,
+)
+
+from textindex.renderer import HTMLIndexRenderer
 
 
 def emphasis(text: str, remove: bool = False) -> str:
@@ -122,120 +134,55 @@ class IndexConfig:
     case_sensitive_sort: bool = False
 
 
+@dataclass
 class TextIndexEntry:
-    """Provides a data structure for representing entries in a text index.
+    """Represents a single entry in a text index hierarchy."""
 
-    Each entry can have labels, references to other entries, and
-    cross-references to external resources.
+    label: Optional[str] = None
+    parent: Optional[Self] = None
+    textindex: Optional[Any] = None
+    sort_key: Optional[str] = None
 
-    Attributes:
-        entry_id (int): A unique identifier for the entry.
-        label (str): The label for the entry.
-        parent (TextIndexEntry): The parent entry to which this entry belongs.
-        entries (list[TextIndexEntry]): The list of child entries.
-        references (list[dict]):
-            List of references to other entries, stored as dictionaries with
-            keys indicating reference types and their values.
-        cross_references (list[dict]):
-            List of cross-references related to the entry.
-        sort_key (any): The key used for sorting the entry in a text index.
-        textindex (TextIndex):
-            The associated TextIndex instance that contains this entry.
+    entries: List[Self] = field(default_factory=list)
+    references: List[Dict[str, Any]] = field(default_factory=list)
+    cross_references: List[Dict[str, Any]] = field(default_factory=list)
 
-    Methods:
-        sort_on() -> LiteralString:
-            Provides a method to retrieve the sorting key or label, converted
-            to lowercase.
-        add_reference(
-            start_id, suffix=None, locator_emphasis=False, section=None
-        ): Adds a reference to another entry with optional parameters for start
-            and end IDs, suffixes, locator emphasis, and sections.
-        add_cross_reference(ref_type, path):
-            Adds a cross-reference to an external resource.
-        update_latest_ref_end(
-            end_id, end_suffix=None, end_section=None
-        ): Updates the latest reference's end information.
-        depth() -> int:
-            Returns the depth of the entry in the text index hierarchy.
-        has_children() -> bool: Checks if the entry has any child entries.
-        has_also_refs() -> bool:
-            Checks if the entry has cross-references to resources marked as
-            'also'.
-        run_in_children() -> bool:
-            Determines if this entry should be rendered its children in run-in
-            style, based on its depth relative to other entries.
-        prefix_search(text) -> TextIndexEntry:
-            Searches for an entry with a given label prefix.
-        path_list() -> list[str]:
-            Returns the path from the root entry to the current entry as a list
-            of labels.
-        joined_path(path=None) -> str:
-            Joins the path elements into a string with appropriate delimiters
-            and quotes.
-        render_references():
-            Renders the references for the entry, considering emphasis-first
-            sorting and section mode.
+    # class-level constants
+    _entry_id_prefix: str = field(default="entry", init=False, repr=False)
+    _entry_link_class: str = field(default="entry-link", init=False, repr=False)
+    _next_id: int = 0
 
-    Note:
-        The class uses internal attributes prefixed with underscores (`_`) to
-        store information that is not intended for public use.
-        These attributes are managed internally by the TextIndexEntry class and
-        should not be accessed or modified directly.
-    """
+    end_id: str = field(default="end-id", init=False, repr=False)
+    end_suffix: str = field(default="end-suffix", init=False, repr=False)
+    locator_emphasis: str = field(
+        default="locator-emphasis", init=False, repr=False
+    )
+    section_end: str = field(default="start-end", init=False, repr=False)
+    section_start: str = field(default="start-section", init=False, repr=False)
+    start_id: str = field(default="start-id", init=False, repr=False)
+    suffix: str = field(default="suffix", init=False, repr=False)
 
-    # Keys for dicts in instances' self.references list.
-    _entry_id_prefix = "entry"
-    _entry_link_class = "entry-link"
-    _next_id = 0
-    end_id = "end-id"
-    end_suffix = "end-suffix"
-    locator_emphasis = "locator-emphasis"
-    section_end = "start-end"
-    section_start = "start-section"
-    start_id = "start-id"
-    suffix = "suffix"
+    entry_id: int = field(init=False)
 
-    def __init__(self, label: str = None, parent: Self = None) -> None:
-        """Initializes a new instance of the TextIndexEntry class.
-
-        Args:
-            label (str): The label for the entry.
-            parent (TextIndexEntry):
-                The parent entry to which this entry belongs.
-
-        Returns:
-            None: This method does not return any value.
-        """
+    # ---------------------------------------------------------------------
+    # Initialization
+    # ---------------------------------------------------------------------
+    def __post_init__(self) -> None:
+        """Assign a unique ID to each entry instance."""
         self.entry_id = TextIndexEntry._next_id
         TextIndexEntry._next_id += 1
 
-        self.label = label
-        self.parent = parent
-        self.entries: list[Self] = []  # children
-        self.references = []  # list of dicts; see keys above.
-        self.cross_references = []
-        self.sort_key = None
-        self.textindex = None
-
-    def add_cross_reference(self, ref_type, path) -> None:
-        """Adds a cross-reference to the list of references if it does not
-        already exist.
-
-        Args:
-            ref_type (str): The type of reference to be added.
-            path (str): The path associated with the reference.
-
-        Returns:
-            None: This method does not return any value.
-        """
-        # Check this isn't a duplicate.
-        if len(self.cross_references) > 0:
-            for ref in self.cross_references:
-                if (
-                    ref[self.textindex._ref_type] == ref_type
-                    and ref[self.textindex._path] == path
-                ):
-                    return
+    # ---------------------------------------------------------------------
+    # Core behavior
+    # ---------------------------------------------------------------------
+    def add_cross_reference(self, ref_type: str, path: str) -> None:
+        """Add a cross-reference if not already present."""
+        for ref in self.cross_references:
+            if (
+                ref[self.textindex._ref_type] == ref_type
+                and ref[self.textindex._path] == path
+            ):
+                return
         self.cross_references.append(
             {self.textindex._ref_type: ref_type, self.textindex._path: path}
         )
@@ -243,28 +190,14 @@ class TextIndexEntry:
     def add_reference(
         self,
         start_id: str,
-        suffix: str = None,
+        suffix: Optional[str] = None,
         locator_emphasis: bool = False,
-        section: str = None,
+        section: Optional[str] = None,
     ) -> None:
-        """Adds a reference to the collection of references.
-
-        Args:
-            start_id (str): The starting identifier for the reference.
-            suffix (str, optional):
-                A suffix to be added to the reference. Defaults to None.
-            locator_emphasis (bool, optional):
-                A boolean indicating if emphasis should be applied to the
-                locator. Defaults to False.
-            section (str, optional):
-                The section to which this reference belongs. Defaults to None.
-
-        Returns:
-            None: This method does not return any value.
-        """
+        """Add a new reference record for this entry."""
         self.references.append(
             {
-                TextIndex._ref_type: TextIndex._reference,
+                self.textindex._ref_type: self.textindex._reference,
                 self.start_id: start_id,
                 self.suffix: suffix,
                 self.locator_emphasis: locator_emphasis,
@@ -273,422 +206,200 @@ class TextIndexEntry:
         if section:
             self.references[-1][self.section_start] = section
 
+    def update_latest_ref_end(
+        self,
+        end_id: str,
+        end_suffix: Optional[str] = None,
+        end_section: Optional[str] = None,
+    ) -> None:
+        """Update the most recent reference's end markers."""
+        if not self.references:
+            return
+        last_ref = self.references[-1]
+        last_ref[self.end_id] = end_id
+        if end_suffix:
+            last_ref[self.end_suffix] = end_suffix
+        if end_section:
+            last_ref[self.section_end] = end_section
+
     def depth(self) -> int:
-        """Returns the depth of the current node in the tree.
-
-        The depth of a node is defined as the number of edges on the longest
-        path from the node to a leaf node.
-        In other words, it's one more than the height of the subtree rooted at
-        that node.
-
-        Returns:
-            int: The depth of the current node.
-        """
-        level = 0
-        par = self.parent
-        while par:
-            par = par.parent
+        """Return depth of this entry in the index tree."""
+        level, parent = 0, self.parent
+        while parent:
+            parent = parent.parent
             level += 1
         return level
 
     def has_children(self) -> bool:
-        """Checks if the current node has any children.
-
-        Returns:
-            bool: True if there are child entries, False otherwise.
-        """
-        return len(self.entries) > 0
+        return bool(self.entries)
 
     def has_also_refs(self) -> bool:
-        """Determines if the document contains references of type 'also'.
+        """True if entry contains 'also' cross-references."""
+        return any(
+            ent[self.textindex._ref_type] == self.textindex._also
+            for ent in self.cross_references
+        )
 
-        This method checks the list of cross-references for any entries where
-        the reference type is 'also'.
-        If such a reference is found, it returns True; otherwise,
-        it returns False.
+    def path_list(self) -> List[str]:
+        """Return list of ancestor labels leading to this entry."""
+        parts, par = [self.label], self.parent
+        while par:
+            parts.insert(0, par.label)
+            par = par.parent
+        return parts
 
-        Returns:
-            bool: A boolean value indicating whether there are references of
-            type 'also'.
-        """
-        also_xrefs = False
-        if len(self.cross_references) > 0:
-            for ent in self.cross_references:
-                if ent[TextIndex._ref_type] == TextIndex._also:
-                    also_xrefs = True
-                    break
-        return also_xrefs
-
-    def joined_path(self, path=None):
-        """Returns a string representation of the joined path.
-
-        Args:
-            path (list or None):
-                The list of path elements.
-                Defaults to using the self.path_list() method if not provided.
-
-        Returns:
-            str:
-                A string with each path element wrapped in double quotes and
-                joined by the textindex._path_delimiter.
-        """
+    def joined_path(self, path: Optional[List[str]] = None) -> str:
+        """Return a stringified joined version of this entry's path."""
         if path is None:
             path = self.path_list()
-        return self.textindex._path_delimiter.join(f'"{elem}"' for elem in path)
+        return self.textindex._path_delimiter.join(f'"{p}"' for p in path)
 
-    def path_list(self):
-        """Constructs a path to the current node by traversing its parent nodes
-        until it reaches the root node.
-
-        It collects all the labels in a list, starting from the current node and
-        moving upwards through its ancestors.
-
-        Returns:
-            list[str]:
-                Returns a list of the labels from the top to bottom hierarchy.
-        """
-        components = [self.label]
-        par = self.parent
-        while par:
-            components.insert(0, par.label)
-            par = par.parent
-        return components
-
-    def prefix_search(self, text: str) -> Self | None:
-        """Searches for a prefix in the tree structure starting from the current
-        node.
-
-        Args:
-            text (str): The prefix to search for within the tree.
-
-        Returns:
-            Self | None: The node with matching prefix if found, else None.
-        """
-        found = None
-        if self.label.startswith(text):
+    def prefix_search(self, text: str) -> Optional[Self]:
+        """Recursive prefix match search starting at this node."""
+        if self.label and self.label.startswith(text):
             return self
         for entry in self.entries:
-            if found := entry.prefix_search(text):
-                break
-        return found
+            found = entry.prefix_search(text)
+            if found:
+                return found
+        return None
 
-    def render_references(self):
-        """Render reference locators based on the current state of
-        self.references.
+    def sort_on(self) -> str:
+        """Return the lowercase sort key or label text."""
+        from .textindex import emphasis  # local import avoids circular refs
 
-        This method generates HTML links for each locator in self.references.
-        The locators are sorted and formatted according to various conditions:
-        - Section mode prioritizes emphasis.
-        - Emphasis-first sorting is applied if not in section mode.
-        - A limit of 10 references is enforced to prevent excessive clutter.
-        - Locators are wrapped in <a> tags with appropriate classes and data
-          attributes for linking.
+        key = self.sort_key if self.sort_key else emphasis(self.label, True)
+        return key.lower()
 
-        Returns:
-            str: A string containing the formatted locators as a field-separated
-                 list, or None if no references exist.
-        """
-        refs = []
+    # ---------------------------------------------------------------------
+    # Internal helpers for rendering
+    # ---------------------------------------------------------------------
+    def _sorted_references(self) -> List[Dict[str, Any]]:
+        """Return sorted references respecting emphasis and section mode."""
+        refs = list(self.references)
+        key_fn = lambda d: d.get(self.locator_emphasis, False)
+        if self.textindex.section_mode or self.textindex.sort_emphasis_first:
+            refs.sort(key=key_fn, reverse=True)
+        return refs
 
-        if len(self.references) > 0:
-            the_refs = self.references
-
-            # Handle section mode; de-duplicate sections (some may be continuing), prioritising emphasis.
-            if self.textindex.section_mode:
-                # Sort emphasised first.
-                the_refs = sorted(
-                    the_refs,
-                    key=lambda d: d[TextIndexEntry.locator_emphasis],
-                    reverse=True,
-                )
-                # Treat continuing locators with same start and end section as separate locators for de-duplication.
-                for this in the_refs:
-                    if (
-                        TextIndexEntry.section_end in this
-                        and this[TextIndexEntry.section_end]
-                        == this[TextIndexEntry.section_start]
-                    ):
-                        this.pop(TextIndexEntry.section_end)
-                deduped = []
-                for this in the_refs:
-                    # Use reference if it doesn't have an exact (section start and end) match already.
-                    sec_tuples = [
-                        [
-                            i.get(f)
-                            for f in [
-                                TextIndexEntry.section_start,
-                                TextIndexEntry.section_end,
-                            ]
-                        ]
-                        for i in deduped
-                    ]
-                    this_tuple = [
-                        this.get(TextIndexEntry.section_start),
-                        this.get(TextIndexEntry.section_end),
-                    ]
-                    if this_tuple not in sec_tuples:
-                        deduped.append(this)
-                    else:
-                        self.textindex.inform(
-                            f"Omitting duplicate section reference {this[TextIndexEntry.section_start]} for {self.joined_path()}.",
-                            force=True,
-                        )
-                the_refs = deduped
-                if not self.textindex.sort_emphasis_first:
-                    deduped = sorted(
-                        deduped, key=lambda d: d[TextIndexEntry.start_id]
-                    )
-
-            # Respect emphasis-first option.
-            if (
-                self.textindex.sort_emphasis_first
-                and not self.textindex.section_mode
-            ):
-                the_refs = sorted(
-                    the_refs,
-                    key=lambda d: d[TextIndexEntry.locator_emphasis],
-                    reverse=True,
-                )
-
-            ref_limit = 10
-            if len(the_refs) >= ref_limit:
+    def _dedupe_section_refs(
+        self, refs: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        """De-duplicate section-mode references (unique start/end pairs)."""
+        deduped = []
+        seen_pairs = set()
+        for ref in refs:
+            pair = (ref.get(self.section_start), ref.get(self.section_end))
+            if pair not in seen_pairs:
+                deduped.append(ref)
+                seen_pairs.add(pair)
+            else:
                 self.textindex.inform(
-                    f"Entry {self.joined_path()} has {len(the_refs)} locators. Consider reorganising or being more selective.",
-                    severity="warning",
+                    f"Omitting duplicate section reference {ref.get(self.section_start)} "
+                    f"for {self.joined_path()}.",
+                    force=True,
                 )
+        return deduped
 
-            loc_class = "locator"
-            for i in range(len(the_refs)):
-                ref = the_refs[i]
-                sec_start = (
-                    f' data-section="{ref[TextIndexEntry.section_start]}"'
-                    if TextIndexEntry.section_start in ref
-                    else ""
-                )
-                locator_html = f'<a class="{loc_class}" href="#{self.textindex.index_id_prefix}{ref[TextIndexEntry.start_id]}" data-index-id="{ref[TextIndexEntry.start_id]}" data-index-id-elided="{ref[TextIndexEntry.start_id]}"{sec_start}></a>'
-                if (
-                    self.textindex.section_mode
-                    and TextIndexEntry.section_end in ref
-                ) or (
-                    not self.textindex.section_mode
-                    and TextIndexEntry.end_id in ref
-                ):
-                    elided_end = elide_end(
-                        ref[TextIndexEntry.start_id], ref[TextIndexEntry.end_id]
-                    )
-                    sec_end = (
-                        f' data-section="{ref[TextIndexEntry.section_end]}"'
-                        if TextIndexEntry.section_end in ref
-                        else ""
-                    )
-                    locator_html += self.textindex.config.range_separator
-                    locator_html += f'<a class="{loc_class}" href="#{self.textindex.index_id_prefix}{ref[TextIndexEntry.end_id]}" data-index-id="{ref[TextIndexEntry.end_id]}" data-index-id-elided="{elided_end}"{sec_end}></a>'
-                suffix_applied = False
-                if TextIndexEntry.suffix in ref and ref[TextIndexEntry.suffix]:
-                    locator_html += f"{ref[TextIndexEntry.suffix]}"
-                    suffix_applied = True
-                if (
-                    TextIndexEntry.end_suffix in ref
-                    and ref[TextIndexEntry.end_suffix]
-                ):
-                    locator_html += f"{' ' if suffix_applied else ''}{ref[TextIndexEntry.end_suffix]}"
-                if ref[TextIndexEntry.locator_emphasis]:
-                    locator_html = f"<em>{locator_html}</em>"
+    def _build_locator_html(self, ref: Dict[str, Any]) -> str:
+        """Build an individual locator <a> tag (handles ranges, suffixes, emphasis)."""
+        ti = self.textindex
+        start_id = ref[self.start_id]
+        html = (
+            f'<a class="locator" href="#{ti.index_id_prefix}{start_id}" '
+            f'data-index-id="{start_id}" data-index-id-elided="{start_id}"></a>'
+        )
 
-                refs.append(locator_html)
+        # Handle range (start-end)
+        has_range = (ti.section_mode and self.section_end in ref) or (
+            not ti.section_mode and self.end_id in ref
+        )
+        if has_range:
+            elided = self._elide_end_id(ref)
+            end_id = ref[self.end_id]
+            html += (
+                f"{ti.config.range_separator}"
+                f'<a class="locator" href="#{ti.index_id_prefix}{end_id}" '
+                f'data-index-id="{end_id}" data-index-id-elided="{elided}"></a>'
+            )
 
-            if len(refs) > 0:
-                sep = self.textindex.config.field_separator
-                return sep.join(refs)
+        # Add suffixes
+        if ref.get(self.suffix):
+            html += str(ref[self.suffix])
+        if ref.get(self.end_suffix):
+            html += " " + str(ref[self.end_suffix])
 
-        return None
+        # Apply emphasis
+        if ref.get(self.locator_emphasis):
+            html = f"<em>{html}</em>"
 
-    def render_also_references(self) -> str | None:
-        """Render also-type cross-references.
+        return html
 
-        Returns:
-            str | None: The rendered string containing the also-type
-                cross-references, or None if no such references exist.
-        """
-        # Also-type cross-references.
-        return self.render_xrefs_of_type(TextIndex._also)
+    def _elide_end_id(self, ref: Dict[str, Any]) -> int:
+        """Return elided end ID (e.g. 123–25)."""
+        from .textindex import elide_end
 
-    def render_cross_references(self) -> str | None:
-        """Render see-type cross-references.
+        return elide_end(ref[self.start_id], ref[self.end_id])
 
-        This method generates a list of cross-reference entries for the 'see'
-        type from the text index. The 'see' type typically indicates that an
-        item is related to another item in some way, such as a glossary entry or
-        a reference.
+    def _render_xrefs_of_type(self, ref_type: str) -> str | None:
+        """Render all cross-references of a given type as joined HTML."""
+        if not self.cross_references:
+            return None
 
-        The method returns a list of cross-reference entries, where each entry
-        contains:
-        - The label (or title) associated with the see-type reference.
-        - The URL or identifier pointing to the target item.
-
-        For example:
-        [
-            {
-                "label": "Glossary Entry",
-                "url": "https://example.com/glossary-entry"
-            },
-            {
-                "label": "Related Topic",
-                "url": "https://example.com/topic"
-            }
+        self._sort_cross_refs()
+        refs = [
+            self._build_xref_html(ref)
+            for ref in self.cross_references
+            if ref[self.textindex._ref_type] == ref_type
         ]
-        """
-        # See-type cross-references.
-        return self.render_xrefs_of_type(self.textindex.config.see_label)
 
-    def render_xrefs_of_type(self, ref_type=TextIndex.see):
-        """ """
-        # Render cross-references.
-        refs = []
+        return self.textindex.config.list_separator.join(refs) if refs else None
 
-        if len(self.cross_references) > 0:
-            self.sort_cross_refs()
-
-            for i in range(len(self.cross_references)):
-                ref = self.cross_references[i]
-                if ref[TextIndex._ref_type] == ref_type:
-                    ref_path = ref[TextIndex._path]
-                    ref_entry = self.textindex.existing_entry_at_path(ref_path)
-                    refs.append(f"{IndexConfig.path_separator.join(ref_path)}")
-                    if ref_entry:
-                        refs[-1] = (
-                            f'<a class="{TextIndexEntry._entry_link_class}" href="#{TextIndexEntry._entry_id_prefix}{ref_entry.entry_id}">{refs[-1]}</a>'
-                        )
-                    else:
-                        self.textindex.inform(
-                            f"Cross-referenced entry {self.joined_path(ref_path)} doesn't exist (in entry {self.joined_path()})",
-                            severity="warning",
-                        )
-            if len(refs) > 0:
-                sep = self.textindex.config.list_separator + " "
-                return sep.join(refs)
-
-        return None
-
-    def run_in_children(self) -> bool:
-        """Determines if this entry should be rendered in run-in style.
-
-        The function checks whether the current entry should be formatted as a
-        run-in element.
-        Top-level entries are at level 0, and are considered children of the
-        index itself.
-        Depths 0 and 1 (top-level entries, and their sub-entries) are always
-        indented.
-        Thereafter, for practical reasons, only the deepest level is run-in.
-        A run-in element is typically used to display entries that are closely
-        related or part of a group.
-
-        Notes:
-            Please don't make indexes deeper than root+2 levels though, for your
-            readers' sake!
-
-
-        Parameters:
-            self (Entry):
-                The Entry instance for which to determine run-in status.
-
-        Returns:
-            bool: True if the entry should be rendered in run-in style,
-                False otherwise.
-        """
-        if self.textindex.should_run_in:
-            my_depth = self.depth()
-            return my_depth > 0 and my_depth == self.textindex.depth - 1
-        return False
-
-    def sort_cross_refs(self) -> None:
-        """Sorts the cross-references in this object.
-
-        The sorting process involves two main steps:
-
-        1. **Sort by Path Alphabetically**:
-           - The `cross_references` list is sorted based on the concatenated
-             path of each reference.
-           - This ensures that paths are compared lexicographically, meaning
-             they are ordered alphabetically.
-
-        2. **Sort See-Refs First**:
-           - After sorting the cross-references alphabetically by their paths,
-             see-references (those with a specific ref_type) are sorted first.
-           - The sorting order for see-references is reversed, meaning they
-             appear at the end of the list instead of at the beginning.
-
-        This method modifies the `cross_references` attribute in place and does
-        not return any value.
-
-        Returns:
-            None: This method does not return any value.
-        """
-        if len(self.cross_references) > 0:
-            # First sort by path alphabetically.
-            self.cross_references.sort(
-                key=lambda d: "".join(d[TextIndex._path])
+    def _build_xref_html(self, ref: Dict[str, Any]) -> str:
+        """Render a single cross-reference entry."""
+        path = ref[self.textindex._path]
+        path_text = self.textindex.config.path_separator.join(path)
+        ref_entry = self.textindex.existing_entry_at_path(path)
+        if ref_entry:
+            return (
+                f'<a class="{self._entry_link_class}" '
+                f'href="#{self._entry_id_prefix}{ref_entry.entry_id}">{path_text}</a>'
             )
-            # Then sort the see-refs first.
-            self.cross_references.sort(
-                key=lambda d: d[TextIndex._ref_type], reverse=True
-            )
+        self.textindex.inform(
+            f"Cross-referenced entry {self.joined_path(path)} doesn't exist "
+            f"(in entry {self.joined_path()})",
+            severity="warning",
+        )
+        return path_text
 
-    def sort_on(self) -> LiteralString:
-        """Provides a method to retrieve the sorting key or label, converted to
-        lowercase.
+    def _sort_cross_refs(self) -> None:
+        """Sort cross-references alphabetically, 'see' before 'also'."""
+        if not self.cross_references:
+            return
+        self.cross_references.sort(
+            key=lambda d: "".join(d[self.textindex._path])
+        )
+        self.cross_references.sort(
+            key=lambda d: d[self.textindex._ref_type], reverse=True
+        )
 
-        Summary:
-            The `sort_on` method is designed to provide a consistent way of
-            accessing and normalizing the sorting key for an object.
-            It returns either the stored `sort_key` attribute if it exists, or
-            the label converted to lowercase using the `emphasis` function.
-
-        Returns:
-            LiteralString: The sorting key or label if it exists.
-        """
-        return (
-            self.sort_key if self.sort_key else emphasis(self.label, True)
-        ).lower()
-
-    def update_latest_ref_end(
-        self, end_id: str, end_suffix: str = None, end_section: str = None
-    ) -> None:
-        """Updates the latest reference's fields with new values.
-
-        Args:
-            end_id (str): The identifier of the end point.
-            end_suffix (str, optional):
-                The suffix associated with the end point. Defaults to None.
-            end_section (str, optional):
-                The section or group associated with the end point.
-                Defaults to None.
-
-        Returns:
-            None: This method does not return any value.
-        """
-        self.references[-1][self.end_id] = end_id
-        if end_suffix:
-            self.references[-1][self.end_suffix] = end_suffix
-        if end_section:
-            self.references[-1][self.section_end] = end_section
-
-    def __bool__(self):
+    # ---------------------------------------------------------------------
+    # Utility / meta
+    # ---------------------------------------------------------------------
+    def __bool__(self) -> bool:
         return True
 
-    def __len__(self):
-        num_entries = 1
-        for entry in self.entries:
-            num_entries += len(entry)
-        return num_entries
+    def __len__(self) -> int:
+        return 1 + sum(len(c) for c in self.entries)
 
-    def __repr__(self):
-        return self.__str__()
-
-    def __str__(self):
+    def __str__(self) -> str:
         num_children = len(self.entries)
-        path_str = TextIndex._path_delimiter.join(self.path_list()[:-1])
-        return f'Entry: "{self.label}", depth {self.depth()} {"(" + path_str + TextIndex._path_delimiter + ")" if path_str != "" else ""} [{num_children} child{"" if num_children == 1 else "ren"}{", run-in" if self.run_in_children() else ", indented"}]'
+        path_str = self.textindex._path_delimiter.join(self.path_list()[:-1])
+        return (
+            f'Entry: "{self.label}", depth {self.depth()} '
+            f"({'(' + path_str + self.textindex._path_delimiter + ')' if path_str else ''}) "
+            f"[{num_children} child{'ren' if num_children != 1 else ''}]"
+        )
 
 
 def string_to_slug(text) -> str:
@@ -794,25 +505,35 @@ class TextIndex:
         self.depth = 0  # zero-based greatest depth
         self.section_mode = False
 
-    def _alias_replace(self, the_match) -> str:
-        """Replace alias with its corresponding path.
+    def apply_config(self, config_string: str) -> None:
+        """Type-safe config updater for dataclass IndexConfig."""
+        if not config_string:
+            return
 
-        Args:
-            the_match (re.Match):
-                A match object containing the captured groups of an alias.
+        valid_keys = {f.name for f in fields(self.config.__class__)}
+        import shlex
 
-        Returns:
-            str: The replaced string.
-        """
-        replacement = the_match.group(0)
-        if the_match.group(1) and the_match.group(1) in self.aliases:
-            replacement = self._path_delimiter.join(
-                f'"{elem}"'
-                for elem in self.aliases[the_match.group(1)][
-                    TextIndex._alias_path
-                ]
-            )
-        return replacement
+        for token in shlex.split(config_string):
+            if "=" not in token:
+                continue
+            key, value = token.split("=", 1)
+            key, value = key.strip(), value.strip().strip("'\"")
+
+            if key in valid_keys:
+                field_type = next(
+                    f.type
+                    for f in fields(self.config.__class__)
+                    if f.name == key
+                )
+                try:
+                    value = field_type(value)
+                except Exception:
+                    pass
+                setattr(self.config, key, value)
+            elif hasattr(self, "inform"):
+                self.inform(
+                    f"Unknown config key ignored: {key}", severity="warning"
+                )
 
     def convert_latex_index_commands(self) -> None:
         """Converts LaTeX index commands in the document to index marks.
@@ -981,114 +702,6 @@ class TextIndex:
         self.inform("Index creation complete.", force=True)
         return output_text
 
-    # ---------------------------------------------------------------------------
-    # Internal helper methods
-    # ---------------------------------------------------------------------------
-
-    def _prepare_document(self, text: str) -> str:
-        """Normalize and preprocess the document before indexing."""
-        text = text.replace("\r\n", "\n").replace("\r", "\n")
-
-        if getattr(self, "section_mode", False):
-            self.inform(
-                "Section mode active: splitting document sections", "info"
-            )
-            text = self._split_into_sections(text)
-
-        return text
-
-    def _find_index_directives(self, text: str) -> list[str]:
-        """Extract all index directives from text."""
-        patterns = [
-            r"{\^index:([^}]+)}",  # Markdown-style
-            r"@index\{([^}]+)\}",  # reST-style
-            r"\\index\{([^}]+)\}",  # LaTeX-style
-        ]
-        matches: list[str] = []
-        for pattern in patterns:
-            matches.extend(re.findall(pattern, text))
-        return matches
-
-    def _process_directive(self, directive: str) -> None:
-        """Process a single index directive and add it to the index tree."""
-        try:
-            entry = self._parse_index_entry(directive)
-            self._add_entry(entry)
-        except Exception as exc:
-            self.inform(
-                f"Failed to process directive '{directive}': {exc}", "warning"
-            )
-
-    def _parse_index_entry(self, directive: str):
-        """Convert a directive string into a TextIndexEntry (hierarchical)."""
-        parts = [p.strip() for p in directive.split("!") if p.strip()]
-        entry = None
-        for label in parts:
-            entry = self._get_or_create_entry(label, entry)
-        return entry
-
-    def _get_or_create_entry(self, label: str, parent) -> TextIndexEntry:
-        """Return existing entry with label under parent or create a new one."""
-        existing = self.find_entry(label, parent)
-        if existing:
-            return existing
-
-        new_entry = TextIndexEntry(label=label, parent=parent, textindex=self)
-        if parent:
-            parent.entries.append(new_entry)
-        else:
-            self.entries.append(new_entry)
-        return new_entry
-
-    def _add_entry(self, entry: TextIndexEntry) -> None:
-        """Hook for any extra index-entry initialization (cross-refs, etc.)."""
-        label_lower = entry.label.lower()
-
-        if label_lower.startswith("see "):
-            entry.cross_references.append(
-                {
-                    "type": self.config.see_label,
-                    "target": entry.label[4:].strip(),
-                }
-            )
-        elif label_lower.startswith("see also "):
-            entry.cross_references.append(
-                {"type": "see_also", "target": entry.label[9:].strip()}
-            )
-        # Extend here for aliasing, grouping, etc.
-
-    def _render_final_index(self) -> str:
-        """Render the entire index hierarchy into HTML."""
-        sorted_entries = self.sort_entries(self.entries)
-        html_parts: list[str] = ["<dl class='text-index'>"]
-
-        for entry in sorted_entries:
-            html_parts.append(self.entry_html(entry))
-
-        html_parts.append("</dl>")
-        return "\n".join(html_parts)
-
-    def _insert_index_placeholder(self, text: str, index_html: str) -> str:
-        """Replace the index placeholder or append index HTML at the end."""
-        placeholder_pattern = re.compile(r"{\^index}")
-
-        if placeholder_pattern.search(text):
-            return placeholder_pattern.sub(index_html, text)
-
-        self.inform(
-            "No {^index} placeholder found; appending index at end.", "warning"
-        )
-        return text.rstrip() + "\n\n" + index_html
-
-    # ---------------------------------------------------------------------------
-    # Optional: helper for section mode (stub for now)
-    # ---------------------------------------------------------------------------
-
-    def _split_into_sections(self, text: str) -> str:
-        """Split document into sections (stub for section_mode support)."""
-        # Placeholder implementation; replace with your section logic.
-        return text
-
     def define_alias(self, name: str, path: str) -> None:
         """Define an alias for a given path in the configuration.
 
@@ -1175,144 +788,6 @@ class TextIndex:
 
         return entry, (entry and not created)
 
-    def entry_html(self, entry: TextIndexEntry) -> str:
-        """Generates HTML representation of a text index entry.
-
-        Args:
-            entry (TextIndexEntry): The entry to convert into HTML.
-
-        Returns:
-            str: HTML string representing the entry.
-        """
-        running_in = entry.parent and entry.parent.run_in_children()
-        run_in_children = entry.run_in_children()
-        depth = entry.depth() + 1
-        indent = max((2 * depth - 1), 1) * "\t"
-
-        refs_html = ""
-        refs_output = False
-
-        # --- 1. Cross-references ("see") ---
-        xrefs_html, has_xrefs = self._build_cross_ref_html(entry, running_in)
-        refs_html += xrefs_html
-        refs_output |= has_xrefs
-
-        # --- 2. Regular references (locators) ---
-        entry_refs_html, has_refs = self._build_locator_html(entry, refs_output)
-        refs_html += entry_refs_html
-        refs_output |= has_refs
-
-        # --- 3. Children (run-in mode) ---
-        if run_in_children:
-            if entry.has_children():
-                if has_refs:
-                    delim = self.config.list_separator
-                elif not has_xrefs:
-                    delim = self.config.path_separator
-                else:
-                    delim = self.config.category_separator
-
-                refs_html += delim + self._join_children(entry)
-            elif entry.has_also_refs():
-                refs_html += self.config.category_separator
-
-        # --- 4. Inline also-references when no children ---
-        if (
-            not entry.has_children() or run_in_children
-        ) and entry.has_also_refs():
-            refs_html += self._build_also_refs_html(entry, running_in)
-            refs_output = True
-
-        # --- 5. Assemble the entry HTML itself ---
-        entry_label_html = f"{emphasis(entry.label)}" if entry.label else ""
-        entry_head_html = (
-            f'<span id="{TextIndexEntry._entry_id_prefix}{entry.entry_id}" class="entry-heading">'
-            f"{entry_label_html}</span>"
-            f'<span class="entry-references">{refs_html}</span>'
-        )
-        html = (
-            f"{indent}<dt>{entry_head_html}</dt>\n"
-            if not running_in
-            else entry_head_html
-        )
-
-        # --- 6. Non-run-in children (indented structure) ---
-        if not run_in_children and entry.entries:
-            html += f"{indent}<dd>\n{indent}\t<dl>\n"
-            html += self._join_children(entry)
-            html += f"{indent}\t</dl>\n{indent}</dd>\n"
-
-        # --- 7. Parent's 'see also' references ---
-        if entry.parent and entry.parent.has_also_refs() and not running_in:
-            also_refs_html = entry.parent.render_also_references()
-            if also_refs_html:
-                html += (
-                    f'{indent}<dt><span class="entry-references">'
-                    f"<em>{self.config.see_also_label.capitalize()}</em> {also_refs_html}</span></dt>\n"
-                )
-
-        return html
-
-    def _join_children(self, entry: TextIndexEntry) -> str:
-        """Helper to generate HTML for sorted child entries."""
-        return self.config.list_separator.join(
-            self.entry_html(child) for child in self.sort_entries(entry.entries)
-        )
-
-    def _build_cross_ref_html(
-        self, entry: TextIndexEntry, running_in: bool
-    ) -> tuple[str, bool]:
-        """Private helper: return HTML for 'see' cross-references."""
-        xrefs_html = entry.render_cross_references()
-        if not xrefs_html:
-            return "", False
-        label = (
-            self.config.see_label.lower()
-            if running_in
-            else self.config.see_label.capitalize()
-        )
-        prefix = (
-            f" (<em>{label}</em> "
-            if running_in
-            else f"{self.config.category_separator}<em>{label}</em> "
-        )
-        return f"{prefix}{xrefs_html}", True
-
-    def _build_locator_html(
-        self, entry: TextIndexEntry, has_prev: bool
-    ) -> tuple[str, bool]:
-        """Private helper: return HTML for entry locators
-        (page/section references).
-        """
-        entry_refs_html = entry.render_references()
-        if not entry_refs_html:
-            return "", False
-        prefix = (
-            self.config.category_separator
-            if has_prev
-            else self.config.field_separator
-        )
-        return f"{prefix}{entry_refs_html}", True
-
-    def _build_also_refs_html(
-        self, entry: TextIndexEntry, running_in: bool
-    ) -> str:
-        """Private helper: return HTML for 'see also' references."""
-        also_refs_html = entry.render_also_references()
-        if not also_refs_html:
-            return ""
-        label = (
-            self.config.see_also_label.lower()
-            if running_in
-            else self.config.see_also_label.capitalize()
-        )
-        prefix = (
-            f" (<em>{label}</em> "
-            if running_in
-            else f"{self.config.category_separator}<em>{label}</em> "
-        )
-        return f"{prefix}{also_refs_html}"
-
     def existing_entry_at_path(self, path):
         if path:
             path_len = len(path)
@@ -1375,84 +850,42 @@ class TextIndex:
             self.create_index()
         return self._indexed_document
 
-    def index_html(self, config_string=None):
-        if not self._indexed_document:
+    def index_html(self, config_string: str | None = None) -> str:
+        """Build and render the full index as HTML.
+
+        This method delegates the HTML rendering to HTMLIndexRenderer,
+        which recursively generates <ul>/<li> markup for each entry and
+        its children.
+
+        Args:
+            config_string: Optional configuration override (legacy option).
+
+        Returns:
+            A string containing the complete HTML output of the index.
+        """
+        # Ensure index is built before rendering
+        if not getattr(self, "_indexed_document", None):
             self.create_index()
 
-        # Process any parameters in the index directive.
+        # Optional: handle legacy or dynamic config updates
         if config_string:
-            config_attrs = {
-                TextIndex._prefix: "_index_id_prefix",
-                TextIndex.see: "_see_label",
-                TextIndex._also: "_see_also_label",
-                TextIndex._headings: "_group_headings",
-                TextIndex._run_in: "_should_run_in",
-                TextIndex._emphasis_first: "_sort_emph_first",
-            }
-            for key, attr in config_attrs.items():
-                param_match = re.search(
-                    rf"(?i){key}=(['\"])(.+?)\1", config_string
-                )
-                if param_match and param_match.group(2):
-                    setattr(self, attr, param_match.group(2))
+            self.apply_config(config_string)
 
-        # Generate HTML.
-        html = ""
-        if len(self.entries) > 0:
-            if self.depth > 1:
-                if self.should_run_in:
-                    deepest = self.depth + 1
-                    self.inform(
-                        f"Deep index (>2 levels). Level {deepest} entries will be run-in to level {deepest - 1}. See docs to disable.",
-                        severity="warning",
-                    )
-                else:
-                    self.inform(
-                        "Deep index (>2 levels). Consider reducing depth, or enable run-in (see docs).",
-                        severity="warning",
-                    )
+        # Use the new modular renderer
+        renderer = HTMLIndexRenderer(self)
+        html_output = renderer.render()
 
-            html += f'<dl class="{TextIndex._shared_class} index">\n'
-            sorted_entries = self.sort_entries(self.entries)
-            letter = sorted_entries[0].sort_on()[0]
-            html += self.group_heading(letter, True)
-            for entry in sorted_entries:
-                next_letter = entry.sort_on()[0]
-                if next_letter != letter:
-                    html += self.group_heading(next_letter)
-                    letter = next_letter
-                html += self.entry_html(entry)
-            html += "</dl>"
-        else:
-            self.inform("No index entries defined.", severity="warning")
+        # Add optional header or wrapper (if config defines one)
+        if getattr(self.config, "include_header", False):
+            header = getattr(self.config, "header_text", "<h2>Index</h2>")
+            html_output = f"{header}\n{html_output}"
 
-        # Check size ratio of index to overall document.
-        # Remove HTML tags.
-        tag_strip_pattern = r"<.*?>"
-        stripped_doc = self._indexed_document
-        stripped_doc = re.sub(tag_strip_pattern, "", stripped_doc)
-        stripped_index = html
-        stripped_index = re.sub(tag_strip_pattern, "", stripped_index)
-        # Count words approximately.
-        wc_pattern = r"\b\w+\b"
-        words = re.findall(wc_pattern, stripped_doc)
-        wc_doc = len(words)
-        words = re.findall(wc_pattern, stripped_index)
-        wc_index = len(words)
-        # Assess ratio and warn if appropriate.
-        ratio = round((wc_index / wc_doc) * 100, 1)
-        low_bound, high_bound = 2, 6
-        if ratio < low_bound or ratio > high_bound:
-            self.inform(
-                f"Index might be too {'short' if ratio < low_bound else 'long'} compared to document: ratio is {ratio}% (ideal: {low_bound}–{high_bound}%).",
-                severity="warning",
-            )
-        else:
-            self.inform(
-                f"Good index size ratio to document: {ratio}% (ideal: {low_bound}–{high_bound}%)."
-            )
+        # Add footer if defined
+        if getattr(self.config, "include_footer", False):
+            footer = getattr(self.config, "footer_text", "")
+            html_output = f"{html_output}\n{footer}"
 
-        return html
+        return html_output
 
     @property
     def index_id_prefix(self):
@@ -1462,25 +895,6 @@ class TextIndex:
     def index_id_prefix(self, val) -> None:
         self._index_id_prefix = val
         self._indexed_document = None
-
-    def _index_replace(self, the_match: re.Match) -> str:
-        """Replace a match found by `the_match` with its replacement in the HTML
-        string.
-
-        This method searches for the text within the first capturing group of
-        `the_match` and replaces it with the corresponding text found in the
-        output of `self.index_html`.
-
-        Args:
-            the_match (re.Match):
-                The match object returned by `re.search()` or `re.match()`.
-                This object contains information about a successful match,
-                including the captured groups.
-
-        Returns:
-            str: The modified HTML with the first capturing group replaced.
-        """
-        return self.index_html(the_match.group(1))
 
     def inform(
         self, message: str, severity: str = "normal", force: bool = False
@@ -1807,6 +1221,139 @@ class TextIndex:
         from operator import methodcaller
 
         return sorted(entries, key=methodcaller("sort_on"))
+
+    def _add_entry(self, entry: TextIndexEntry) -> None:
+        """Hook for any extra index-entry initialization (cross-refs, etc.)."""
+        label_lower = entry.label.lower()
+
+        if label_lower.startswith("see "):
+            entry.cross_references.append(
+                {
+                    "type": self.config.see_label,
+                    "target": entry.label[4:].strip(),
+                }
+            )
+        elif label_lower.startswith("see also "):
+            entry.cross_references.append(
+                {"type": "see_also", "target": entry.label[9:].strip()}
+            )
+        # Extend here for aliasing, grouping, etc.
+
+    def _alias_replace(self, the_match) -> str:
+        """Replace alias with its corresponding path.
+
+        Args:
+            the_match (re.Match):
+                A match object containing the captured groups of an alias.
+
+        Returns:
+            str: The replaced string.
+        """
+        replacement = the_match.group(0)
+        if the_match.group(1) and the_match.group(1) in self.aliases:
+            replacement = self._path_delimiter.join(
+                f'"{elem}"'
+                for elem in self.aliases[the_match.group(1)][
+                    TextIndex._alias_path
+                ]
+            )
+        return replacement
+
+    def _find_index_directives(self, text: str) -> list[str]:
+        """Extract all index directives from text."""
+        patterns = [
+            r"{\^index:([^}]+)}",  # Markdown-style
+            r"@index\{([^}]+)\}",  # reST-style
+            r"\\index\{([^}]+)\}",  # LaTeX-style
+        ]
+        matches: list[str] = []
+        for pattern in patterns:
+            matches.extend(re.findall(pattern, text))
+        return matches
+
+    def _get_or_create_entry(self, label: str, parent) -> TextIndexEntry:
+        """Return existing entry with label under parent or create a new one."""
+        existing = self.find_entry(label, parent)
+        if existing:
+            return existing
+
+        new_entry = TextIndexEntry(label=label, parent=parent, textindex=self)
+        if parent:
+            parent.entries.append(new_entry)
+        else:
+            self.entries.append(new_entry)
+        return new_entry
+
+    def _index_replace(self, the_match: re.Match) -> str:
+        """Replace a match found by `the_match` with its replacement in the HTML
+        string.
+
+        This method searches for the text within the first capturing group of
+        `the_match` and replaces it with the corresponding text found in the
+        output of `self.index_html`.
+
+        Args:
+            the_match (re.Match):
+                The match object returned by `re.search()` or `re.match()`.
+                This object contains information about a successful match,
+                including the captured groups.
+
+        Returns:
+            str: The modified HTML with the first capturing group replaced.
+        """
+        return self.index_html(the_match.group(1))
+
+    def _insert_index_placeholder(self, text: str, index_html: str) -> str:
+        """Replace the index placeholder or append index HTML at the end."""
+        placeholder_pattern = re.compile(r"{\^index}")
+
+        if placeholder_pattern.search(text):
+            return placeholder_pattern.sub(index_html, text)
+
+        self.inform(
+            "No {^index} placeholder found; appending index at end.", "warning"
+        )
+        return text.rstrip() + "\n\n" + index_html
+
+    def _parse_index_entry(self, directive: str):
+        """Convert a directive string into a TextIndexEntry (hierarchical)."""
+        parts = [p.strip() for p in directive.split("!") if p.strip()]
+        entry = None
+        for label in parts:
+            entry = self._get_or_create_entry(label, entry)
+        return entry
+
+    def _prepare_document(self, text: str) -> str:
+        """Normalize and preprocess the document before indexing."""
+        text = text.replace("\r\n", "\n").replace("\r", "\n")
+
+        if getattr(self, "section_mode", False):
+            self.inform(
+                "Section mode active: splitting document sections", "info"
+            )
+            text = self._split_into_sections(text)
+
+        return text
+
+    def _process_directive(self, directive: str) -> None:
+        """Process a single index directive and add it to the index tree."""
+        try:
+            entry = self._parse_index_entry(directive)
+            self._add_entry(entry)
+        except Exception as exc:
+            self.inform(
+                f"Failed to process directive '{directive}': {exc}", "warning"
+            )
+
+    def _render_final_index(self) -> str:
+        """Render the entire index hierarchy into HTML."""
+        renderer = HTMLIndexRenderer(self)
+        return renderer.render()
+
+    def _split_into_sections(self, text: str) -> str:
+        """Split document into sections (stub for section_mode support)."""
+        # Placeholder implementation; replace with your section logic.
+        return text
 
     def __bool__(self):
         return True if self._indexed_document else False
