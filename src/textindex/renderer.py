@@ -28,53 +28,82 @@ if TYPE_CHECKING:
 
 
 class HTMLIndexRenderer:
-    """Render TextIndex entries into an HTML <dl> list hierarchy."""
+    """Render TextIndex entries into an HTML <dl> hierarchy (legacy-compatible)."""
 
     def __init__(self, textindex: "TextIndex"):
         self.textindex = textindex
         self.config = textindex.config
 
     def render(self) -> str:
-        """Render full index as <dl>…</dl> HTML."""
-        html = "<dl class='textindex'>\n"
-        for entry in getattr(self.textindex, "entries", []):
-            html += self.render_entry(entry)
-        html += "</dl>\n"
+        """Render full index as <dl class="textindex index">…</dl>."""
+        ti = self.textindex
+        entries = ti.sort_entries(ti.entries)
+        html = '<dl class="textindex index">\n'
+        prev_initial = None
+        is_first = True
+        for ent in entries:
+            initial = (ent.sort_on()[:1] or "").upper()
+            # Group separators (blank line entries) between groups
+            if prev_initial is not None and initial != prev_initial:
+                html += ti.group_heading(initial)
+            elif is_first:
+                html += ti.group_heading(initial, is_first=True)
+            is_first = False
+            prev_initial = initial
+
+            html += self._render_entry(ent)
+        html += '</dl>\n'
         return html
 
-    def render_entry(self, entry: "TextIndexEntry", level: int = 0) -> str:
-        """Render a single index entry line."""
-        # Handle missing label gracefully
-        label = getattr(entry, "label", "?")
-        parsed = self._parse_index_entry_text(label)
-
-        html = "<dt>"
-        html += self._escape(parsed["main"])
-
-        # Subentries
-        for sub in parsed["subs"]:
-            html += f" &gt; {self._escape(sub)}"
-
-        # See / See also
-        see_bits = []
-        if parsed["seealso"]:
-            see_bits.append(
-                "<i>see</i> " + self._escape("; ".join(parsed["seealso"]))
+    def _render_entry(self, entry: "TextIndexEntry") -> str:
+        ti = self.textindex
+        cfg = ti.config
+        html = "\t<dt>"
+        html += f'<span id="{entry._entry_id_prefix}{entry.entry_id}" class="entry-heading">{self._escape(entry.label)}</span>'
+        # References (locators)
+        refs_html = self._render_references(entry)
+        xref_see = entry._render_xrefs_of_type(ti._prefix)
+        xref_also = entry._render_xrefs_of_type(ti._also)
+        xref_bits = []
+        if xref_see:
+            xref_bits.append(f"<em>{cfg.see_label.capitalize()}</em> {xref_see}")
+        if xref_also:
+            xref_bits.append(
+                f"<em>{cfg.see_also_label.capitalize()}</em> {xref_also}"
             )
-        if parsed["seealso_also"]:
-            see_bits.append(
-                "<i>see also</i> "
-                + self._escape("; ".join(parsed["seealso_also"]))
-            )
-        if see_bits:
-            html += " — " + "; ".join(see_bits)
-
+        # Render refs/xrefs: if entry has children, put xrefs as separate child DT
+        if refs_html:
+            html += f"<span class=\"entry-references\">, {refs_html}"
+            # If we will add xrefs here (no children), punctuation handled below
+            if not entry.entries and xref_bits:
+                html += f". {'. '.join(xref_bits)}"
+            html += "</span>"
+        else:
+            if not entry.entries and xref_bits:
+                html += f"<span class=\"entry-references\">. {'. '.join(xref_bits)}</span>"
         html += "</dt>\n"
+
+        # Children
+        if entry.entries:
+            html += "\t<dd>\n\t\t<dl>\n"
+            # If there are xrefs, render them as a separate child row first
+            if xref_bits:
+                html += "\t\t\t<dt><span class=\"entry-references\">" + " . ".join(xref_bits) + "</span></dt>\n"
+            for child in ti.sort_entries(entry.entries):
+                html += "\t\t\t" + self._render_entry(child)
+            html += "\t\t</dl>\n\t</dd>\n"
+
         return html
+
+    def _render_references(self, entry: "TextIndexEntry") -> str | None:
+        refs = entry._sorted_references()
+        if not refs:
+            return None
+        parts = [entry._build_locator_html(ref) for ref in refs]
+        return ", ".join(parts)
 
     @staticmethod
     def _escape(text: str) -> str:
-        """Escape HTML special characters."""
         if text is None:
             return ""
         return (
@@ -84,38 +113,3 @@ class HTMLIndexRenderer:
             .replace(">", "&gt;")
             .replace('"', "&quot;")
         )
-
-    @staticmethod
-    def _parse_index_entry_text(text: str) -> dict[str, list[str] | str]:
-        """Parse a raw index directive body into components.
-
-        Handles hierarchy (>), cross-references (|), and list separators (;).
-        Example: 'layers>"Shift, concept of"##shiftlayer|+safety'
-        """
-        entry = {"main": "", "subs": [], "seealso": [], "seealso_also": []}
-
-        # Separate 'see' and 'see also' portions
-        see_split = text.split("|")
-        main = see_split[0].strip()
-        if len(see_split) > 1:
-            for seg in see_split[1:]:
-                seg = seg.strip()
-                if not seg:
-                    continue
-                # '+…' means "see also"
-                if seg.startswith("+"):
-                    entry["seealso_also"].extend(
-                        [s.strip() for s in seg[1:].split(";") if s.strip()]
-                    )
-                else:
-                    entry["seealso"].extend(
-                        [s.strip() for s in seg.split(";") if s.strip()]
-                    )
-
-        # Split hierarchical terms
-        parts = [p.strip() for p in main.split(">") if p.strip()]
-        entry["main"] = parts[0] if parts else ""
-        if len(parts) > 1:
-            entry["subs"] = parts[1:]
-
-        return entry
