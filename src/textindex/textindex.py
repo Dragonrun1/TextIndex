@@ -887,9 +887,10 @@ class TextIndex:
         self._indexed_document = None
 
     def indexed_document(self):
-        if not self._indexed_document:
-            self.create_index()
-        return self._indexed_document
+        """Backward-compatible method for legacy scripts.
+        Returns the indexed document just like old versions did.
+        """
+        return self.create_index()
 
     def index_html(self, config_string: str | None = None) -> str:
         """Build and render the full index as HTML.
@@ -1301,9 +1302,12 @@ class TextIndex:
         return replacement
 
     def _find_index_directives(self, text: str) -> list[str]:
-        """Extract all index directives from text."""
+        """Extract all index directives from text.
+        Supports both modern and legacy syntaxes.
+        """
         patterns = [
-            r"{\^index:([^}]+)}",  # Markdown-style
+            r"{\^index:([^}]+)}",  # Markdown-style (modern)
+            r"{\^([^}:]+)}",  # Legacy shorthand {^term}
             r"@index\{([^}]+)\}",  # reST-style
             r"\\index\{([^}]+)\}",  # LaTeX-style
         ]
