@@ -1,0 +1,32 @@
+# textindex-config.toml
+# Unified concordance and rendering configuration for TextIndex
+
+[rendering]
+wrap_with_span = true
+emphasis_default = true
+id_prefix = "idx"
+id_counter_start = 1
+
+# Each entry in this array corresponds to a TSV line
+[[concordance.rules]]
+pattern = "=iPad|iPhone|Mac"
+replacement = '"Apple platforms"'
+comment = "Case-sensitive match; treat Apple device names as one category."
+
+[[concordance.rules]]
+pattern = "(single-|double-)?tap(s|ped|ping)?"
+replacement = "tap"
+comment = "Regex example demonstrating grouping."
+
+[[concordance.rules]]
+pattern = "config(uration)?s?\\b"
+replacement = "|firmware"
+comment = "Maps configuration-related terms to firmware."
+
+[[concordance.rules]]
+pattern = "simultaneous(ly)?"
+replacement = "|combo;+chord"
+
+[[concordance.rules]]
+pattern = "layers?"
+replacement = "toggle>layer"

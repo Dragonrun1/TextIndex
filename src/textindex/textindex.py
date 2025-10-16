@@ -41,8 +41,10 @@ Usage:
 from __future__ import annotations
 
 import re
+import tomllib
 from dataclasses import dataclass, field, fields
 from operator import methodcaller
+from pathlib import Path
 from typing import (
     Any,
     Dict,
@@ -1319,162 +1321,26 @@ class TextIndex:
             return
         print(f"TextIndex [{severity.upper()}]: {message}")
 
-    def load_concordance_file(self, path) -> None:
-        """Load a concordance file and process it to add index marks to the
-        original document.
+    def load_concordance_file(self, path: str):
+        """Load concordance and rendering configuration from a TOML file."""
+        file_path = Path(path)
+        if not file_path.exists():
+            raise FileNotFoundError(f"TOML configuration not found: {path}")
 
-        Args:
-            path (str): The path to the concordance file.
+        with open(file_path, "rb") as f:
+            config = tomllib.load(f)
 
-        Returns:
-            None: This method does not return any value.
+        # Load the concordance table (lowercased keys)
+        self.concordance = {
+            k.lower(): v for k, v in config.get("concordance", {}).items()
+        }
 
-        Raises:
-            IOError: If there is an error opening or reading the file.
-        """
-        if not self.original_document or self.original_document == "":
-            self.inform(
-                "No document to index; ignoring concordance file.",
-                severity="warning",
-            )
-            return
+        # Optional rendering config block
+        self.rendering_config = config.get("rendering", {})
 
-        # Load file.
-        import os
-
-        conc_contents = None
-        concordance = []
-        try:
-            path = os.path.abspath(os.path.expanduser(path))
-            conc_file = open(path, "r")
-            conc_contents = conc_file.read()
-            conc_file.close()
-
-        except IOError as e:
-            self.inform(
-                f"Couldn't open concordance file: {e}", severity="error"
-            )
-            return
-
-        if not conc_contents:
-            self.inform(
-                f"Couldn't read concordance file: {path}", severity="error"
-            )
-
-        # Duplicate original document to work with.
-        if self.intermediate_document:
-            conc_doc = str(self.intermediate_document)
-        else:
-            conc_doc = str(self.original_document)
-
-        # Parse into entry-pattern lines.
-        for line in conc_contents.split("\n"):
-            if line.startswith("#") or re.fullmatch(r"^\s*$", line):
-                continue
-            # Collapse tab-runs
-            line = re.sub(r"\t+", "\t", line)
-            # split into columns
-            components = line.strip("\n").split("\t")
-            if len(components) > 0:
-                case_sensitive = False
-                if components[0].startswith("\\="):
-                    # Since we use = as a prefix for case-sensitive, allow
-                    # \= for literal equals by stripping \.
-                    components[0] = components[0][1:]
-                elif components[0].startswith("="):
-                    # Explicitly case-sensitive.
-                    components[0] = components[0][1:]
-                    case_sensitive = True
-                elif components[0] != components[0].lower():
-                    # Implicitly case-sensitive because not all-lowercase.
-                    case_sensitive = True
-
-                if not case_sensitive:
-                    components[0] = "(?i)" + components[0]
-
-                if len(components) == 1:
-                    components.append(
-                        ""
-                    )  # Ensure second column for simplicity.
-
-                concordance.append(
-                    components[:2]
-                )  # Discard anything after 2nd column.
-
-        # Parse document for TextIndex marks, index directive, and HTML tag
-        # ranges to exclude.
-        excluded_ranges = []
-        excl_pattern = (
-            f"{self._index_placeholder_pattern}"
-            f"|(?:{self._index_directive_pattern})"
-            "|<.*?>"
-        )
-        excl_matches = re.finditer(excl_pattern, conc_doc)
-        for excl in excl_matches:
-            excluded_ranges.append([excl.start(), excl.end()])
-
-        # Process concordance entries.
-        term_ranges = []
-        for conc in concordance:
-            # Match and replace this term expression wherever it doesn't
-            # intersect excluded ranges.
-            term_matches = re.finditer(conc[0], conc_doc)
-            new_exclusions = []
-            last_checked = 0
-            for term in term_matches:
-                # Check this isn't an excluded range.
-                is_excluded = False
-                for i in range(last_checked, len(excluded_ranges)):
-                    excl = excluded_ranges[i]
-                    start, end = excl[0], excl[1]
-                    if end <= term.start():
-                        # This excluded range ends before term. Keep looking.
-                        last_checked = i
-                        continue
-                    if start >= term.end():
-                        # This excluded range starts after term. We're done.
-                        break
-                    if term.start() >= start or term.end() <= end:
-                        # This excluded range intersects term.
-                        # Abort replacement.
-                        is_excluded = True
-                        break
-
-                if not is_excluded:
-                    term_ranges.append(
-                        [term.start(), term.end(), term.group(0), conc[1]]
-                    )
-                    new_exclusions.append([term.start(), term.end()])
-
-            # Exclude found terms for this concordance from future matching.
-            excluded_ranges += new_exclusions
-            excluded_ranges.sort(key=lambda x: x[0])
-
-        # Sort all term ranges by order of appearance.
-        term_ranges.sort(key=lambda x: x[0])
-
-        # Insert suitable index marks.
-        offset = 0
-        marks_added = 0
-        for term in term_ranges:
-            mark = f"[{term[2]}]{{^{term[3]}}}"
-            conc_doc = (
-                conc_doc[: term[0] + offset]
-                + mark
-                + conc_doc[term[1] + offset :]
-            )
-            offset += len(mark) - len(term[2])
-            marks_added += 1
-
-        # Make the intermediate concorded document available.
-        self.intermediate_document = conc_doc
-
-        # Log results.
-        mess = (
-            "Concordance file processed."
-            f"{len(concordance)} rules generated {marks_added} index marks."
-        )
-        self.inform(mess, force=True)
+        # Reset ID counter if defined
+        start = self.rendering_config.get("id_counter_start", 1)
+        self._id_counter = start
 
     def process_wildcards(self, label, text, force_label_only=False):
         if label:
