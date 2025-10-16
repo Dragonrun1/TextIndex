@@ -17,7 +17,7 @@
 #
 #  SPDX-License-Identifier: GPL-3.0-or-later
 # ##############################################################################
-"""Inserts an index into an appropriately-formatted text document.
+"""Inserts an index into an appropriately formatted text document.
 
 Examples:
     >>> from textindex import textindex
@@ -56,22 +56,8 @@ from typing import (
     get_origin,
 )
 
+from textindex.config import IndexConfig
 from textindex.renderer import HTMLIndexRenderer
-
-
-def emphasis(text: str, remove: bool = False) -> str:
-    """Change emphasis on text.
-
-    Args:
-        text (str): text to modify.
-        remove (bool): remove the emphasis.
-
-    Returns:
-        str: modified text.
-    """
-    # Process Markdown _emphasis_
-    replace_val = r"<em>\1</em>" if not remove else r"\1"
-    return re.sub(r"_([^_]+?)_", replace_val, text)
 
 
 def elide_end(start: int, end: int) -> int:
@@ -106,44 +92,44 @@ def elide_end(start: int, end: int) -> int:
     return int(result)
 
 
-@dataclass
-class IndexConfig:
-    """Configuration options for text index generation and rendering."""
+def emphasis(text: str, remove: bool = False) -> str:
+    """Change emphasis on text.
 
-    # --- Labels ---
-    see_label: str = "see"
-    see_also_label: str = "see also"
+    Args:
+        text (str): text to modify.
+        remove (bool): remove the emphasis.
 
-    # --- Rendering behavior ---
-    category_separator: str = ". "
-    field_separator: str = ", "
-    list_separator: str = "; "
-    path_separator: str = ": "
-    range_separator = "–"
+    Returns:
+        str: modified text.
+    """
+    # Process Markdown _emphasis_
+    replace_val = r"<em>\1</em>" if not remove else r"\1"
+    return re.sub(r"_([^_]+?)_", replace_val, text)
 
-    # --- Structural behavior ---
-    run_in_children: bool = True
-    # Legacy example output does not show visible A/Z headings; keep only NBSP separators by default.
-    group_headings: bool = False
-    sort_emphasis_first: bool = False
 
-    # --- Output format ---
-    # Literal["html", "markdown", "text"]
-    output_format: str = "html"
+def string_to_slug(text) -> str:
+    """Convert a given string to a slug format.
 
-    # --- Logging and diagnostics ---
-    verbose: bool = False
-    show_warnings: bool = True
+    Args:
+        text (str): The input string to be converted.
 
-    # --- Advanced options ---
-    section_mode: bool = False
-    case_sensitive_sort: bool = False
+    Returns:
+        str: A slugified version of the input string.
+    """
+    # Strip quotes
+    text = re.sub(r'[\'"“”‘’]+', "", text)
 
-    # --- Optional header/footer support ---
-    include_header: bool = False
-    include_footer: bool = False
-    header_text: str = "<h2>Index</h2>"
-    footer_text: str = ""
+    # Replace non-alphanumeric characters with whitespace
+    text = re.sub(r"\W+", " ", text)
+
+    # Replace whitespace runs with single hyphens
+    text = re.sub(r"\s+", "-", text)
+
+    # Remove leading and trailing hyphens
+    text = text.strip("-")
+
+    # Return in lowercase
+    return text.lower()
 
 
 @dataclass
@@ -430,31 +416,6 @@ class TextIndexEntry:
         )
 
 
-def string_to_slug(text) -> str:
-    """Convert a given string to a slug format.
-
-    Args:
-        text (str): The input string to be converted.
-
-    Returns:
-        str: A slugified version of the input string.
-    """
-    # Strip quotes
-    text = re.sub(r'[\'"“”‘’]+', "", text)
-
-    # Replace non-alphanumeric characters with whitespace
-    text = re.sub(r"\W+", " ", text)
-
-    # Replace whitespace runs with single hyphens
-    text = re.sub(r"\s+", "-", text)
-
-    # Remove leading and trailing hyphens
-    text = text.strip("-")
-
-    # Return in lowercase
-    return text.lower()
-
-
 class TextIndex:
     """TextIndex is a class designed to index and process document text.
     It facilitates the creation of index entries based on specified patterns,
@@ -462,7 +423,6 @@ class TextIndex:
     integrated indexes.
     """
 
-    # Internal use below.
     _group_headings = False
     _index_id_prefix = "idx"
     _should_run_in = True
