@@ -218,5 +218,5 @@ docs/
 DEVOXXGENIE.md
 docker-compose.yaml
 installer.sh
-TextIndex.zip
+TextIndex*.zip
 junk.py
