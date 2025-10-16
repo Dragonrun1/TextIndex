@@ -28,16 +28,15 @@ if TYPE_CHECKING:
 
 
 class HTMLIndexRenderer:
-    """Render TextIndex entries into an HTML <dl> hierarchy (legacy-compatible)."""
+    """Render TextIndex entries into an HTML <dl> hierarchy."""
 
     def __init__(self, textindex: "TextIndex"):
         self.textindex = textindex
         self.config = textindex.config
 
     def render(self) -> str:
-        """Render full index as <dl class="textindex index">…</dl>."""
-        ti = self.textindex
-        entries = ti.sort_entries(ti.entries)
+        """Render the full index as <dl class="textindex index">…</dl>."""
+        entries = self.textindex.sort_entries(self.textindex.entries)
         html = '<dl class="textindex index">\n'
         prev_initial = None
         is_first = True
@@ -45,42 +44,42 @@ class HTMLIndexRenderer:
             initial = (ent.sort_on()[:1] or "").upper()
             # Group separators (blank line entries) between groups
             if prev_initial is not None and initial != prev_initial:
-                html += ti.group_heading(initial)
+                html += self.textindex.group_heading(initial)
             elif is_first:
-                html += ti.group_heading(initial, is_first=True)
+                html += self.textindex.group_heading(initial, is_first=True)
             is_first = False
             prev_initial = initial
 
             html += self._render_entry(ent)
-        html += '</dl>\n'
+        html += "</dl>\n"
         return html
 
     def _render_entry(self, entry: "TextIndexEntry") -> str:
-        ti = self.textindex
-        cfg = ti.config
         html = "\t<dt>"
         html += f'<span id="{entry._entry_id_prefix}{entry.entry_id}" class="entry-heading">{self._escape(entry.label)}</span>'
         # References (locators)
         refs_html = self._render_references(entry)
-        xref_see = entry._render_xrefs_of_type(ti._prefix)
-        xref_also = entry._render_xrefs_of_type(ti._also)
+        xref_see = entry._render_xrefs_of_type(self.textindex._prefix)
+        xref_also = entry._render_xrefs_of_type(self.textindex._also)
         xref_bits = []
         if xref_see:
-            xref_bits.append(f"<em>{cfg.see_label.capitalize()}</em> {xref_see}")
+            xref_bits.append(
+                f"<em>{self.config.see_label.capitalize()}</em> {xref_see}"
+            )
         if xref_also:
             xref_bits.append(
-                f"<em>{cfg.see_also_label.capitalize()}</em> {xref_also}"
+                f"<em>{self.config.see_also_label.capitalize()}</em> {xref_also}"
             )
         # Render refs/xrefs: if entry has children, put xrefs as separate child DT
         if refs_html:
-            html += f"<span class=\"entry-references\">, {refs_html}"
-            # If we will add xrefs here (no children), punctuation handled below
+            html += f'<span class="entry-references">, {refs_html}'
+            # If we add xrefs here (no children), punctuation handled below
             if not entry.entries and xref_bits:
                 html += f". {'. '.join(xref_bits)}"
             html += "</span>"
         else:
             if not entry.entries and xref_bits:
-                html += f"<span class=\"entry-references\">. {'. '.join(xref_bits)}</span>"
+                html += f'<span class="entry-references">. {". ".join(xref_bits)}</span>'
         html += "</dt>\n"
 
         # Children
@@ -88,8 +87,12 @@ class HTMLIndexRenderer:
             html += "\t<dd>\n\t\t<dl>\n"
             # If there are xrefs, render them as a separate child row first
             if xref_bits:
-                html += "\t\t\t<dt><span class=\"entry-references\">" + " . ".join(xref_bits) + "</span></dt>\n"
-            for child in ti.sort_entries(entry.entries):
+                html += (
+                    '\t\t\t<dt><span class="entry-references">'
+                    + " . ".join(xref_bits)
+                    + "</span></dt>\n"
+                )
+            for child in self.textindex.sort_entries(entry.entries):
                 html += "\t\t\t" + self._render_entry(child)
             html += "\t\t</dl>\n\t</dd>\n"
 
