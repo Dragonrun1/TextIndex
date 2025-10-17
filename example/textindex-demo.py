@@ -1,4 +1,7 @@
-#  TextIndex - A simple, lightweight syntax for creating indexes in text documents.
+#!/usr/bin/env python3
+
+#  TextIndex - A simple, lightweight syntax for creating indexes in text
+#  documents.
 #  Copyright © 2025 Michael Cummings <mgcummings@yahoo.com>
 #
 #  This program is free software: you can redistribute it and/or modify
@@ -16,13 +19,17 @@
 #
 #  SPDX-License-Identifier: GPL-3.0-or-later
 # ##############################################################################
+"""xxx."""
 
 import argparse
-import os
 import sys
+from pathlib import Path
 
 from textindex import textindex
 
+# -----------------------------
+# Parse command-line arguments
+# -----------------------------
 parser = argparse.ArgumentParser(allow_abbrev=False)
 parser.add_argument(
     "--verbose",
@@ -31,48 +38,57 @@ parser.add_argument(
     action="store_true",
     default=False,
 )
-args = parser.parse_known_args()
-file_path = "example.md"
-conc_path = "example-concordance.tsv"
-verbose = args[0].verbose
+parser.add_argument(
+    "input_file",
+    nargs="?",
+    default="example.md",
+    help="[optional] Markdown file to process",
+)
+args = parser.parse_args()
 
-this_script_path = os.path.abspath(os.path.expanduser(sys.argv[0]))
-file_path = os.path.join(os.path.dirname(this_script_path), file_path)
-conc_path = os.path.join(os.path.dirname(this_script_path), conc_path)
+verbose = args.verbose
 
-if len(args) > 1:
-    extra_args = args[1]
-    if len(extra_args) > 0:
-        file_path = extra_args[0]
+# -----------------------------
+# Determine paths relative to this script
+# -----------------------------
+script_path = Path(__file__).resolve()
+script_dir = script_path.parent
 
+# Input Markdown file
+file_path = script_dir / args.input_file
+
+# Concordance / TOML configuration file
+conc_path = script_dir / "textindex-config.toml"
+
+# Output filename derived from input
+output_filename = script_dir / f"{file_path.stem}-converted{file_path.suffix}"
+
+# -----------------------------
+# Check files exist
+# -----------------------------
+if not file_path.is_file():
+    print(f"Error: Input file not found: {file_path}")
+    sys.exit(1)
+
+if not conc_path.is_file():
+    print(f"Error: TOML configuration not found: {conc_path}")
+    sys.exit(1)
+
+# -----------------------------
+# Process the document
+# -----------------------------
 try:
-    # Open and read file.
-    file_path = os.path.abspath(file_path)
-    input_file = open(file_path, "r")
-    file_contents = input_file.read()
-    input_file.close()
+    file_contents = file_path.read_text(encoding="utf-8")
 
-    # Process index.
     index = textindex.TextIndex(file_contents)
     index.verbose = verbose
     index.convert_latex_index_commands()
-    index.load_concordance_file(os.path.abspath(conc_path))
+    index.load_concordance_file(str(conc_path))
     file_contents = index.indexed_document()
 
-    # Write out result to "-converted" file alongside original.
-    basename, sep, ext = file_path.partition(".")
-    output_filename = f"{basename}-converted{sep}{ext}"
-    output_file = open(output_filename, "w")
-    output_file.write(file_contents)
-    output_file.close()
-    print(f"Wrote output file: {output_filename}")
+    output_filename.write_text(file_contents, encoding="utf-8")
 
-    if False:
-        # Write out concorded intermediate file for inspection.
-        output_filename = f"{basename}-intermediate{sep}{ext}"
-        output_file = open(output_filename, "w")
-        output_file.write(index.intermediate_document)
-        output_file.close()
+    print(f"Wrote output file: {output_filename}")
 
 except IOError as e:
     print(f"Error: {e}")
