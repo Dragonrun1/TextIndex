@@ -24,7 +24,8 @@ Examples:
     >>> index = textindex.TextIndex("Hello World")
     >>> index.verbose = True
     >>> book_contents_string = index.indexed_document()
-    TextIndex: 0 entries created.
+    TextIndex [NORMAL]: Starting index creation...
+    TextIndex [NORMAL]: Index creation complete.
 
 Usage:
  from textindex import textindex
